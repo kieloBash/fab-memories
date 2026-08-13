@@ -42,6 +42,9 @@ export default function StaffUsersListPage() {
                                 <td className="py-2 pr-4">{u.isActive ? 'Active' : 'Inactive'}</td>
                                 <td className="py-2 pr-4">{new Date(u.createdAt).toLocaleDateString()}</td>
                                 <td className="py-2 pr-4">
+                                    <Link href={`/staff/admin/users/${u.id}/edit`} className="text-slate-700 hover:underline">
+                                        Edit
+                                    </Link>
                                     {u.isActive && (
                                         <button
                                             onClick={() => deactivate(u.id)}

@@ -1,9 +1,8 @@
-// app/staff/page.tsx — client-side fallback version if force-dynamic alone doesn't fix it
 'use client';
 
+import { useEffect } from 'react';
 import { useAuth } from '@clerk/nextjs';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
 
 export default function StaffIndexPage() {
     const { isLoaded, sessionClaims } = useAuth();
@@ -19,5 +18,10 @@ export default function StaffIndexPage() {
         else router.replace('/portal');
     }, [isLoaded, sessionClaims, router]);
 
-    return <p className="p-6 text-sm text-slate-500">Redirecting...</p>;
+    return (
+        <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-slate-900" />
+            <p className="text-sm text-slate-500">Loading your dashboard...</p>
+        </div>
+    );
 }
