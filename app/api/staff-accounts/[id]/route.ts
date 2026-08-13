@@ -1,5 +1,6 @@
 import type { Role } from '@/app/generated/prisma/client';
-import { requireAdmin } from '@/lib/clerk/auth';
+import { logAction } from '@/lib/audit/log';
+import { getCurrentDbUser, requireAdmin } from '@/lib/clerk/auth';
 import { clerkClient } from '@/lib/clerk/client';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
@@ -42,6 +43,15 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         },
     });
 
+    const actor = await getCurrentDbUser();
+    await logAction({
+        userId: actor?.id,
+        action: 'UPDATE',
+        module: 'USER_MANAGEMENT',
+        description: `Admin updated account "${existing.username}"`,
+        metadata: { targetUserId: id, changes: body },
+    });
+
     return NextResponse.json(updated);
 }
 
@@ -71,6 +81,15 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     const updated = await prisma.user.update({
         where: { id },
         data: { isActive: false },
+    });
+
+    const actor = await getCurrentDbUser();
+    await logAction({
+        userId: actor?.id,
+        action: 'DELETE',
+        module: 'USER_MANAGEMENT',
+        description: `Admin deactivated account "${existing.username}"`,
+        metadata: { targetUserId: id },
     });
 
     return NextResponse.json(updated);

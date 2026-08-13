@@ -1,4 +1,5 @@
 import type { Role } from '@/app/generated/prisma/client';
+import { logAction } from '@/lib/audit/log';
 import { clerkClient } from '@/lib/clerk/client';
 import { prisma } from '@/lib/prisma';
 import { headers } from 'next/headers';
@@ -56,7 +57,7 @@ export async function POST(req: Request) {
                     });
                 }
 
-                await prisma.user.upsert({
+                const dbUser = await prisma.user.upsert({
                     where: { clerkId: data.id },
                     update: {},
                     create: {
@@ -66,6 +67,14 @@ export async function POST(req: Request) {
                         fullName: `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim() || 'Unnamed User',
                         role,
                     },
+                });
+
+                await logAction({
+                    userId: dbUser.id,
+                    action: 'CREATE',
+                    module: 'AUTH',
+                    description: `User account created (role: ${role})`,
+                    metadata: { clerkId: data.id, role },
                 });
                 break;
             }

@@ -1,8 +1,9 @@
-import { NextResponse } from 'next/server';
-import { requireAdmin } from '@/lib/clerk/auth';
+import type { Role } from '@/app/generated/prisma/client';
+import { logAction } from '@/lib/audit/log';
+import { getCurrentDbUser, requireAdmin } from '@/lib/clerk/auth';
 import { clerkClient } from '@/lib/clerk/client';
 import { prisma } from '@/lib/prisma';
-import type { Role } from '@/app/generated/prisma/client';
+import { NextResponse } from 'next/server';
 
 const ALLOWED_STAFF_ROLES: Role[] = ['ADMIN', 'COORDINATOR', 'VENDOR'];
 
@@ -89,6 +90,16 @@ export async function POST(req: Request) {
                 fullName,
                 role,
             },
+        });
+
+        const actor = await getCurrentDbUser();
+
+        await logAction({
+            userId: actor?.id,
+            action: 'CREATE',
+            module: 'USER_MANAGEMENT',
+            description: `Admin created ${role} account for "${username}"`,
+            metadata: { targetUserId: dbUser.id, targetUsername: username, role },
         });
 
         return NextResponse.json(dbUser, { status: 201 });
