@@ -25,7 +25,7 @@ export default async function StaffLayout({
                     Fab Memories Events — Staff Console
                 </span>
                 <LogoutButton
-                    redirectUrl="/staff-login"
+                    redirectUrl="/"
                     className="rounded border border-slate-600 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
                 />
             </header>

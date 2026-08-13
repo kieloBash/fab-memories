@@ -1,3 +1,4 @@
+import { LogoutButton } from '@/components/logout-button';
 import { getCurrentRole } from '@/lib/clerk/auth';
 import { redirect } from 'next/navigation';
 
@@ -21,6 +22,10 @@ export default async function PortalLayout({
         <div className="min-h-screen bg-gray-50">
             <header className="border-b bg-white px-6 py-4">
                 <span className="font-semibold text-gray-800">Fab Memories Events — Client Portal</span>
+                <LogoutButton
+                    redirectUrl="/"
+                    className="rounded border border-slate-600 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+                />
             </header>
             <main className="p-6">{children}</main>
         </div>
