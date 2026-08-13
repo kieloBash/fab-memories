@@ -51,7 +51,7 @@ const debutPackages = [
 
 const loginPortals = [
   {
-    href: "/sign-in",
+    href: "/staff-login",
     icon: ShieldCheck,
     iconBg: "#EAF0FF",
     iconColor: "#2F6BFF",
@@ -59,7 +59,7 @@ const loginPortals = [
     detail: "For admins & event coordinators.",
   },
   {
-    href: "/vendor/login",
+    href: "/staff-login",
     icon: Store,
     iconBg: "#FDEDE3",
     iconColor: "#D97A3E",
@@ -67,7 +67,7 @@ const loginPortals = [
     detail: "Access your assigned events & quotations.",
   },
   {
-    href: "/client/login",
+    href: "/sign-in",
     icon: Users,
     iconBg: "#E3F7E9",
     iconColor: "#1F8A4C",
@@ -157,7 +157,7 @@ export default function LandingPage() {
           <a href="#packages" style={navLinkStyle}>Packages</a>
           <a href="#contact" style={navLinkStyle}>Contact</a>
           <a
-            href="/login"
+            href="/sign-in"
             style={{
               background: "#2F6BFF",
               color: "#fff",
