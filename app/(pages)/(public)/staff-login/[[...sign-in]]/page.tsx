@@ -14,7 +14,7 @@ export default function StaffLoginPage() {
                 <h1 className="mb-6 text-center text-2xl font-semibold text-slate-800">
                     Staff Sign In
                 </h1>
-                <SignIn path="/staff-login" routing="path" fallbackRedirectUrl="/staff" />
+                <SignIn path="/staff-login" routing="path" fallbackRedirectUrl="/staff" forceRedirectUrl={"/staff"} />
             </div>
         </div>
     );

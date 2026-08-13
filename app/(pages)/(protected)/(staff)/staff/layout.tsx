@@ -1,3 +1,4 @@
+import { LogoutButton } from '@/components/logout-button';
 import { getCurrentRole } from '@/lib/clerk/auth';
 import { redirect } from 'next/navigation';
 
@@ -23,6 +24,10 @@ export default async function StaffLayout({
                 <span className="font-semibold text-white">
                     Fab Memories Events — Staff Console
                 </span>
+                <LogoutButton
+                    redirectUrl="/staff-login"
+                    className="rounded border border-slate-600 px-3 py-1.5 text-sm text-white hover:bg-slate-800"
+                />
             </header>
             <main className="p-6">{children}</main>
         </div>
