@@ -28,7 +28,7 @@ export async function POST(req: Request) {
         return new Response('Missing svix headers', { status: 400 });
     }
 
-    const wh = new Webhook(process.env.CLERK_WEBHOOK_SECRET!);
+    const wh = new Webhook(process.env.CLERK_WEBHOOK_SIGNING_SECRET!);
 
     let evt: any;
     try {
