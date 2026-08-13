@@ -8,47 +8,52 @@ datasource db {
 }
 
 enum Role {
-  ADMIN // business owner
-  COORDINATOR // event coordinator / staff
-  VENDOR
   CLIENT
+  ADMIN
+  COORDINATOR
+  VENDOR
 }
 
-enum LocationZone {
-  METRO_MANILA
-  PROVINCIAL // Tagaytay, Cavite, Laguna, Batangas
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  role      Role
+  email     String?  @unique
+  username  String?  @unique
+  fullName  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs AuditLog[]
+
+  @@index([role])
 }
+
+// ---- Audit Trail (stubbed now, wired into feature routes later) ----
 
 enum AuditAction {
   LOGIN
   LOGOUT
-  LOGIN_FAILED
   CREATE
   UPDATE
   DELETE
-  VIEW
-  EXPORT
   VERIFY
-  FLAG
   CONFIRM
   DECLINE
-  CANCEL
-  ASSIGN
-  GENERATE
-  ROLE_CHANGE
+  EXPORT
+  VIEW
 }
 
 enum AuditModule {
   AUTH
-  USER
+  USER_MANAGEMENT
   BOOKING
-  PACKAGE
   PAYMENT
   VENDOR
-  STAFF
+  STAFF_SCHEDULE
   DOCUMENT
   REPORT
-  AUDIT
 }
 
 enum AuditStatus {
@@ -56,156 +61,18 @@ enum AuditStatus {
   FAILURE
 }
 
-enum NotificationType {
-  BOOKING_SUBMITTED
-  BOOKING_CONFIRMED
-  BOOKING_DECLINED
-  BOOKING_CANCELLED
-  PAYMENT_SUBMITTED
-  PAYMENT_VERIFIED
-  PAYMENT_FLAGGED
-  INSTALLMENT_DUE
-  VENDOR_ASSIGNED
-  VENDOR_RESPONDED
-  STAFF_ASSIGNED
-  STAFF_CONFLICT
-  DOCUMENT_READY
-}
-
-// =============================================================================
-// IDENTITY & ACCESS                                          FR-01 → FR-08
-// Clerk owns credentials. This table mirrors Clerk users so that bookings,
-// payments, and audit logs have a local foreign key to point at.
-// Populated by the Clerk webhook on user.created / user.updated / user.deleted.
-// =============================================================================
-
-model User {
-  id        String  @id @default(cuid())
-  clerkId   String  @unique // Clerk user ID — sync key
-  email     String  @unique
-  firstName String?
-  lastName  String?
-  phone     String?
-  imageUrl  String?
-  role      Role    @default(CLIENT) // mirrors Clerk publicMetadata.role  (FR-04)
-  isActive  Boolean @default(true)
-
-  // Only uncomment if you keep a break-glass local admin login.
-  // With Clerk this is otherwise unused — use bcryptjs, not bcrypt.
-  // passwordHash String?
-
-  clientProfile      ClientProfile?
-  coordinatorProfile CoordinatorProfile?
-  // vendor             Vendor? // if this user IS a vendor contact
-
-  // bookingsAsClient    Booking[]          @relation("BookingClient")
-  // bookingsConfirmed   Booking[]          @relation("BookingConfirmedBy")
-  // bookingsCancelled   Booking[]          @relation("BookingCancelledBy")
-  // paymentsSubmitted   Payment[]          @relation("PaymentSubmittedBy")
-  // paymentsVerified    Payment[]          @relation("PaymentVerifiedBy")
-  // vendorAssignments   VendorAssignment[] @relation("VendorAssignedBy")
-  // staffAssignmentsOwn StaffAssignment[]  @relation("StaffCoordinator")
-  // staffAssignmentsBy  StaffAssignment[]  @relation("StaffAssignedBy")
-  // documentsGenerated  Document[]
-  // templatesUpdated    DocumentTemplate[]
-  auditLogs     AuditLog[]
-  notifications Notification[]
-
-  lastSessionId String? // Clerk session ID, used to detect new sign-ins
-  lastLoginAt   DateTime?
-  lastSyncedAt  DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([role])
-  @@index([isActive])
-}
-
-model ClientProfile {
-  id           String  @id @default(cuid())
-  userId       String  @unique
-  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  address      String?
-  city         String?
-  altContact   String?
-  facebookName String? // clients historically inquire via Messenger
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model CoordinatorProfile {
-  id             String  @id @default(cuid())
-  userId         String  @unique
-  user           User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  employeeCode   String? @unique
-  specialization String?
-  isAvailable    Boolean @default(true) //                    FR-36
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// =============================================================================
-// AUDIT TRAIL                                FR-48 → FR-51, NFR-19, NFR-33
-// The core contribution of this study. Append-only.
-// Never write an update or delete route for this model.
-// See the SQL trigger at the bottom of this file.
-// =============================================================================
-
 model AuditLog {
-  id String @id @default(cuid())
+  id          String      @id @default(cuid())
+  userId      String?
+  user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  module      AuditModule
+  description String
+  status      AuditStatus @default(SUCCESS)
+  metadata    Json?
+  createdAt   DateTime    @default(now())
 
-  // Nullable so failed logins by unknown identities are still captured.
-  // Email and role are denormalised on purpose: the log must remain readable
-  // even if the User row is later deleted.
-  userId    String?
-  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-  userEmail String?
-  userRole  Role?
-
-  action      AuditAction //                                   FR-49
-  module      AuditModule //                                   FR-49
-  description String //                                        FR-49
-  status      AuditStatus @default(SUCCESS) //                 FR-49
-
-  entityType String? // "Booking", "Payment", ...
-  entityId   String?
-
-  ipAddress String?
-  userAgent String?
-  metadata  Json? // before/after values, request context
-
-  createdAt DateTime @default(now()) //                        FR-49
-
-  @@index([createdAt])
   @@index([userId])
   @@index([module])
-  @@index([action])
-  @@index([entityType, entityId])
-}
-
-// =============================================================================
-// NOTIFICATIONS                                        FR-32, FR-44, NFR-24
-// =============================================================================
-
-model Notification {
-  id      String           @id @default(cuid())
-  userId  String
-  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type    NotificationType
-  title   String
-  message String
-  link    String?
-
-  isRead      Boolean   @default(false)
-  readAt      DateTime?
-  emailSent   Boolean   @default(false) // nodemailer + Gmail OAuth2
-  emailSentAt DateTime?
-
-  createdAt DateTime @default(now())
-
-  @@index([userId, isRead])
   @@index([createdAt])
 }
