@@ -36,6 +36,7 @@ async function main() {
     const username = process.env.SEED_ADMIN_USERNAME ?? 'admin';
     const password = process.env.SEED_ADMIN_PASSWORD ?? "FabMemories123!";
     const fullName = process.env.SEED_ADMIN_FULLNAME ?? 'System Administrator';
+    const emailAddress = process.env.SEED_ADMIN_EMAIL ?? 'admin@example.com';
 
     if (!password) {
         throw new Error('SEED_ADMIN_PASSWORD env var is required to run this seed.');
@@ -52,6 +53,7 @@ async function main() {
     const clerkUser = await clerkClient.users.createUser({
         username,
         password,
+        emailAddress: [emailAddress],
         publicMetadata: { role: 'ADMIN' satisfies Role },
         skipPasswordChecks: false,
     });

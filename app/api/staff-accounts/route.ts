@@ -1,8 +1,8 @@
-import type { Role } from '@/app/generated/prisma/client';
+import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/clerk/auth';
 import { clerkClient } from '@/lib/clerk/client';
 import { prisma } from '@/lib/prisma';
-import { NextResponse } from 'next/server';
+import type { Role } from '@/app/generated/prisma/client';
 
 const ALLOWED_STAFF_ROLES: Role[] = ['ADMIN', 'COORDINATOR', 'VENDOR'];
 
@@ -67,11 +67,18 @@ export async function POST(req: Request) {
     let clerkUserId: string | null = null;
 
     try {
+        // Instance-wide Email requirement applies to backend-created users too,
+        // so staff get a synthetic, never-verified placeholder email using
+        // IANA's reserved example.com domain — always passes format validation,
+        // never resolves to a real inbox. Staff authenticate via username only.
+        const placeholderEmail = `staff.${username}.${Date.now()}@example.com`;
+
         const clerkUser = await clerk.users.createUser({
             username,
             password,
-            publicMetadata: { role },
+            emailAddress: [placeholderEmail],
             skipPasswordChecks: false,
+            publicMetadata: { role },
         });
         clerkUserId = clerkUser.id;
 

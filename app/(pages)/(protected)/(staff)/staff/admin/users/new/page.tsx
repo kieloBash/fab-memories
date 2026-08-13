@@ -10,7 +10,7 @@ export default function NewStaffAccountPage() {
     const router = useRouter();
     const [form, setForm] = useState({
         username: '',
-        password: '',
+        password: 'FabMemories123!',
         fullName: '',
         role: 'COORDINATOR' as (typeof ROLE_OPTIONS)[number],
     });
