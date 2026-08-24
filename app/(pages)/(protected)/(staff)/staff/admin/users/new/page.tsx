@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useCreateStaffAccount } from '@/features/auth';
 import { useRouter } from 'next/navigation';
-import { useCreateStaffAccount } from '@/lib/api/staff-accounts';
+import { useState } from 'react';
 
 const ROLE_OPTIONS = ['COORDINATOR', 'VENDOR', 'ADMIN'] as const;
 

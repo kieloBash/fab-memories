@@ -1,6 +1,6 @@
 'use client';
 
-import { useDeactivateStaffAccount, useStaffAccounts } from '@/lib/api/staff-accounts';
+import { useDeactivateStaffAccount, useStaffAccounts } from '@/features/auth';
 import Link from 'next/link';
 
 export default function StaffUsersListPage() {

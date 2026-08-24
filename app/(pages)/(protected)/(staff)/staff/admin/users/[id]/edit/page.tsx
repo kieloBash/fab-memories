@@ -1,6 +1,6 @@
 'use client';
 
-import { useStaffAccounts, useUpdateStaffAccount } from '@/lib/api/staff-accounts';
+import { useStaffAccounts, useUpdateStaffAccount } from '@/features/auth';
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -29,7 +29,7 @@ export default function EditStaffAccountPage() {
     function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         mutate(
-            { id, ...form },
+            { id, input: { ...form } },
             {
                 onSuccess: () => {
                     router.push('/staff/admin/users');
