@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "create-feature": "node scripts/create-feature.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
