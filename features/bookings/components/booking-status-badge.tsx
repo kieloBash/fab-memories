@@ -6,11 +6,11 @@ import { BOOKING_STATUS_LABELS } from "../bookings.constants"
 
 const STATUS_VARIANT: Record<
   BookingStatus,
-  "default" | "secondary" | "destructive" | "outline"
+  "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "muted"
 > = {
-  PENDING:   "secondary",
-  CONFIRMED: "default",
-  CANCELLED: "destructive",
+  PENDING:   "warning",    // amber — awaiting action
+  CONFIRMED: "success",    // green — all good
+  CANCELLED: "destructive", // red — cancelled
 }
 
 interface BookingStatusBadgeProps {

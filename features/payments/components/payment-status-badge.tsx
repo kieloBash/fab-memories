@@ -6,12 +6,12 @@ import { PAYMENT_STATUS_LABELS } from "../payments.constants"
 
 const STATUS_VARIANT: Record<
   PaymentStatus,
-  "default" | "secondary" | "destructive" | "outline"
+  "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "muted"
 > = {
-  PENDING:   "outline",
-  SUBMITTED: "secondary",
-  VERIFIED:  "default",
-  FLAGGED:   "destructive",
+  PENDING:   "muted",      // gray — not yet submitted
+  SUBMITTED: "warning",    // amber — awaiting verification
+  VERIFIED:  "success",    // green — confirmed
+  FLAGGED:   "destructive", // red — needs attention
 }
 
 interface PaymentStatusBadgeProps {
