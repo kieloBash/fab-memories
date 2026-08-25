@@ -1,0 +1,42 @@
+// features/payments/payments.types.ts
+
+import type { PaymentMethod, PaymentStatus } from "@/app/generated/prisma/client"
+
+export interface PaymentVerifier {
+  id: string
+  fullName: string
+  role: string
+}
+
+export interface PaymentBooking {
+  id: string
+  eventType: string
+  eventDate: string
+  venue: string
+  client: {
+    id: string
+    fullName: string
+    email: string | null
+  }
+}
+
+export interface Payment {
+  id: string
+  bookingId: string
+  method: PaymentMethod
+  status: PaymentStatus
+  amount: string              // Decimal serialized as string
+  proofImageUrl: string | null
+  referenceNumber: string | null
+  verifiedById: string | null
+  verifiedAt: string | null
+  verificationNote: string | null
+  submittedAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PaymentWithRelations extends Payment {
+  booking: PaymentBooking
+  verifiedBy: PaymentVerifier | null
+}

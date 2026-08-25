@@ -49,8 +49,6 @@ enum AuditStatus {
   FAILURE
 }
 
-// ── Module 2 enums ────────────────────────────────────────────
-
 enum BookingStatus {
   PENDING
   CONFIRMED
@@ -63,6 +61,27 @@ enum EventType {
   CORPORATE
   BIRTHDAY
   OTHER
+}
+
+// ── Module 3 enums ────────────────────────────────────────────
+
+enum PaymentMethod {
+  GCASH
+  BANK_TRANSFER
+  CASH
+  CREDIT_CARD
+}
+
+enum PaymentStatus {
+  PENDING     // awaiting client submission
+  SUBMITTED   // client uploaded proof, awaiting staff verification
+  VERIFIED    // staff confirmed payment received
+  FLAGGED     // staff flagged as invalid / needs resubmission
+}
+
+enum InstallmentStatus {
+  UNPAID
+  PAID
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -80,9 +99,10 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  auditLogs        AuditLog[]
-  bookings         Booking[]        // CLIENT bookings
-  confirmedBy      Booking[]        @relation("BookingConfirmedBy")
+  auditLogs   AuditLog[]
+  bookings    Booking[]           // CLIENT bookings
+  confirmedBy Booking[]           @relation("BookingConfirmedBy")
+  verifiedPayments Payment[]      @relation("PaymentVerifiedBy")
 
   @@index([role])
 }
@@ -103,15 +123,13 @@ model AuditLog {
   @@index([createdAt])
 }
 
-// ── Module 2 — Packages & Bookings ───────────────────────────
-
 model Package {
   id          String    @id @default(cuid())
   name        String
   description String?
   eventType   EventType
   price       Decimal   @db.Decimal(10, 2)
-  inclusions  String[]  // list of included services/items
+  inclusions  String[]
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -123,27 +141,78 @@ model Package {
 }
 
 model Booking {
-  id              String        @id @default(cuid())
-  clientId        String
-  client          User          @relation(fields: [clientId], references: [id])
-  packageId       String
-  package         Package       @relation(fields: [packageId], references: [id])
-  eventType       EventType
-  eventDate       DateTime      @db.Date
-  eventTime       DateTime?     @db.Time
-  venue           String
-  guestCount      Int
-  status          BookingStatus @default(PENDING)
-  notes           String?
-  confirmedAt     DateTime?
-  confirmedById   String?
-  confirmedBy     User?         @relation("BookingConfirmedBy", fields: [confirmedById], references: [id])
+  id                 String        @id @default(cuid())
+  clientId           String
+  client             User          @relation(fields: [clientId], references: [id])
+  packageId          String
+  package            Package       @relation(fields: [packageId], references: [id])
+  eventType          EventType
+  eventDate          DateTime      @db.Date
+  eventTime          DateTime?     @db.Time
+  venue              String
+  guestCount         Int
+  status             BookingStatus @default(PENDING)
+  notes              String?
+  confirmedAt        DateTime?
+  confirmedById      String?
+  confirmedBy        User?         @relation("BookingConfirmedBy", fields: [confirmedById], references: [id])
   cancellationReason String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  payments Payment[]
 
   @@index([clientId])
   @@index([status])
   @@index([eventDate])
   @@index([packageId])
+}
+
+// ── Module 3 — Payments & Installments ───────────────────────
+
+model Payment {
+  id             String        @id @default(cuid())
+  bookingId      String
+  booking        Booking       @relation(fields: [bookingId], references: [id])
+  method         PaymentMethod
+  status         PaymentStatus @default(PENDING)
+  amount         Decimal       @db.Decimal(10, 2)
+
+  // Proof of payment — one of these will be set on submission
+  proofImageUrl  String?       // Supabase Storage URL (screenshot)
+  referenceNumber String?      // for bank transfer / GCash ref no.
+
+  // Verification
+  verifiedById   String?
+  verifiedBy     User?         @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt     DateTime?
+  verificationNote String?     // staff note on verify or flag
+
+  submittedAt    DateTime?     // when client submitted proof
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  installments   Installment[]
+
+  @@index([bookingId])
+  @@index([status])
+}
+
+model Installment {
+  id        String            @id @default(cuid())
+  paymentId String
+  payment   Payment           @relation(fields: [paymentId], references: [id])
+  dueDate   DateTime          @db.Date
+  amount    Decimal           @db.Decimal(10, 2)
+  status    InstallmentStatus @default(UNPAID)
+  paidAt    DateTime?
+  note      String?
+  order     Int               // 1-based position in the schedule
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([paymentId])
+  @@index([status])
+  @@index([dueDate])
 }
