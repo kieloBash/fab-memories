@@ -6,7 +6,7 @@ import { getSignedUrl } from "@/lib/storage"
 import type { PaymentStatus, PaymentType } from "@/app/generated/prisma/client"
 import type { SubmitPaymentInput } from "./payments.schema"
 
-// ── Shared select ─────────────────────────────────────────────
+// ── Relations ─────────────────────────────────────────────────
 
 const WITH_RELATIONS = {
   booking: {
@@ -22,18 +22,12 @@ const WITH_RELATIONS = {
   verifiedBy: { select: { id: true, fullName: true, role: true } },
 } as const
 
-// ── Signed URL helper ─────────────────────────────────────────
+// ── Signed URL enrichment ─────────────────────────────────────
 
-/**
- * Enriches a payment record with a signed URL if it has a storage path.
- * The signed URL expires after 1 hour.
- */
 async function withSignedUrl<T extends { proofStoragePath: string | null }>(
   payment: T,
 ): Promise<T & { proofImageUrl: string | null }> {
-  if (!payment.proofStoragePath) {
-    return { ...payment, proofImageUrl: null }
-  }
+  if (!payment.proofStoragePath) return { ...payment, proofImageUrl: null }
   try {
     const proofImageUrl = await getSignedUrl(payment.proofStoragePath)
     return { ...payment, proofImageUrl }
@@ -61,11 +55,17 @@ export async function getAllPayments(filters?: {
   return Promise.all(payments.map(withSignedUrl))
 }
 
+/**
+ * Returns all payments for a booking ordered newest-first.
+ * IMPORTANT: newest-first ordering means callers that do .find() for
+ * the latest DEPOSIT or INSTALLMENT will get the most recent one,
+ * not an old FLAGGED one from a previous cycle.
+ */
 export async function getPaymentsByBookingId(bookingId: string) {
   const payments = await prisma.payment.findMany({
     where: { bookingId },
     include: WITH_RELATIONS,
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" }, // FIX: was "asc" — caused stale FLAGGED deposit to appear first
   })
   return Promise.all(payments.map(withSignedUrl))
 }
@@ -81,6 +81,11 @@ export async function getPaymentById(id: string) {
 
 // ── Mutations ─────────────────────────────────────────────────
 
+/**
+ * Creates a payment record.
+ * FIX: now stores installmentId directly on the Payment row so the
+ * verify route never has to guess which installment to mark PAID.
+ */
 export async function createPaymentRecord(input: SubmitPaymentInput) {
   const payment = await prisma.payment.create({
     data: {
@@ -90,6 +95,8 @@ export async function createPaymentRecord(input: SubmitPaymentInput) {
       amount:           input.amount,
       proofStoragePath: input.proofStoragePath ?? null,
       referenceNumber:  input.referenceNumber ?? null,
+      // Store which installment this covers (null for DEPOSIT)
+      installmentId:    input.installmentId ?? null,
       status:           "SUBMITTED",
       submittedAt:      new Date(),
     },
@@ -100,12 +107,9 @@ export async function createPaymentRecord(input: SubmitPaymentInput) {
 
 /**
  * Verifies a DEPOSIT payment.
- * Runs as a Prisma transaction:
- *   1. Marks payment as VERIFIED
- *   2. Flips Booking.status → CONFIRMED
- *   3. Sets depositVerifiedAt + depositVerifiedById on the Booking
- *
- * This is the only path that confirms a booking.
+ * Single Prisma transaction:
+ *   1. Payment → VERIFIED
+ *   2. Booking → CONFIRMED + depositVerifiedAt/By set
  */
 export async function verifyDepositPaymentRecord(
   paymentId: string,
@@ -117,9 +121,9 @@ export async function verifyDepositPaymentRecord(
     prisma.payment.update({
       where: { id: paymentId },
       data: {
-        status:          "VERIFIED",
+        status:           "VERIFIED",
         verifiedById,
-        verifiedAt:      new Date(),
+        verifiedAt:       new Date(),
         verificationNote: note ?? null,
       },
       include: WITH_RELATIONS,
@@ -138,7 +142,12 @@ export async function verifyDepositPaymentRecord(
 
 /**
  * Verifies an INSTALLMENT payment.
- * Links the payment to its installment and marks the installment as PAID.
+ * Single Prisma transaction:
+ *   1. Payment → VERIFIED
+ *   2. Linked Installment → PAID + paidAt set
+ *
+ * FIX: installmentId comes directly from payment.installmentId
+ * (stored at submission). No guessing via findFirst.
  */
 export async function verifyInstallmentPaymentRecord(
   paymentId: string,
@@ -160,9 +169,8 @@ export async function verifyInstallmentPaymentRecord(
     prisma.installment.update({
       where: { id: installmentId },
       data: {
-        status:    "PAID",
-        paidAt:    new Date(),
-        paymentId,
+        status: "PAID",
+        paidAt: new Date(),
       },
     }),
   ])

@@ -1,7 +1,8 @@
 // features/bookings/bookings.types.ts
 
-import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
+import type { BookingStatus, EventType, Installment } from "@/app/generated/prisma/client"
 import type { Package } from "@/features/packages"
+import { Payment } from "../payments"
 
 export interface BookingClient {
   id: string
@@ -38,6 +39,7 @@ export interface BookingWithRelations extends Booking {
   client: BookingClient
   package: Package
   confirmedBy: BookingConfirmedBy | null
+  payments: Payment[]
 }
 
 /** Availability check response */

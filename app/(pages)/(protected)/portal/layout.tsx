@@ -1,21 +1,24 @@
-// app/(pages)/(protected)/(client)/portal/layout.tsx
+// app/(pages)/(protected)/portal/layout.tsx
 
-import SidebarShell from '@/features/layouts/components/SidebarShell';
-import { getCurrentDbUser, getCurrentRole } from '@/lib/clerk/auth';
-import { redirect } from 'next/navigation';
-
-const navItems = [
-  { href: '/portal', label: 'My booking', icon: "CalendarHeart" },
-  { href: '/portal/payments', label: 'Payments', icon: "CreditCard" },
-  { href: '/portal/documents', label: 'Documents', icon: "FileText" },
-  { href: '/portal/account', label: 'Account', icon: "UserCircle" },
-];
+import SidebarShell from "@/features/layouts/components/SidebarShell";
+import { getCurrentDbUser, getCurrentRole } from "@/lib/clerk/auth";
+import { redirect } from "next/navigation";
 
 /**
- * Guards everything under /portal — confirms the signed-in user's
- * role is CLIENT. Middleware already redirects non-clients before
- * this runs; this is defense-in-depth.
+ * Fixed nav items:
+ * - "Home" now points to /portal (dashboard) with exact: true
+ * - "My Bookings" correctly points to /portal/bookings
+ * - Payments points to /portal/bookings/:id/payment (deep link handled
+ *   at page level) — top-level nav stays at /portal/payments for overview
  */
+const navItems = [
+  { href: "/portal",            label: "Home",        icon: "Home",         exact: true },
+  { href: "/portal/bookings",   label: "My bookings", icon: "CalendarHeart" },
+  { href: "/portal/payments",   label: "Payments",    icon: "CreditCard" },
+  { href: "/portal/documents",  label: "Documents",   icon: "FileText" },
+  { href: "/portal/account",    label: "Account",     icon: "UserCircle" },
+];
+
 export default async function PortalLayout({
   children,
 }: {
@@ -24,12 +27,11 @@ export default async function PortalLayout({
   const role = await getCurrentRole();
   const user = await getCurrentDbUser();
 
-  if (role !== 'CLIENT') {
-    redirect('/staff');
+  if (role !== "CLIENT") {
+    redirect("/staff");
   }
 
-  // Prefer fullName → username → fallback
-  const displayName = user?.fullName ?? user?.username ?? 'Client';
+  const displayName = user?.fullName ?? user?.username ?? "Client";
 
   return (
     <SidebarShell

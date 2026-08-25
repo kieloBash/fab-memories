@@ -9,6 +9,7 @@ import {
   verifyDepositPaymentRecord,
   verifyInstallmentPaymentRecord,
 } from "@/features/payments/payments.query"
+import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
 type Params = { params: Promise<{ paymentId: string }> }
@@ -18,14 +19,15 @@ type Params = { params: Promise<{ paymentId: string }> }
  * Verifies or flags a SUBMITTED payment. ADMIN / COORDINATOR only.
  *
  * DEPOSIT + VERIFY:
- *   → Marks payment VERIFIED + flips Booking.status → CONFIRMED
- *     (runs as a single Prisma transaction)
+ *   → Payment VERIFIED + Booking CONFIRMED (single transaction)
  *
  * INSTALLMENT + VERIFY:
- *   → Marks payment VERIFIED + links to its Installment + marks Installment PAID
+ *   → Payment VERIFIED + its linked Installment marked PAID (single transaction)
+ *   FIX: installmentId is read from payment.installmentId (stored at submission),
+ *        never guessed via findFirst.
  *
  * Any + FLAG:
- *   → Marks payment FLAGGED so client can resubmit
+ *   → Payment FLAGGED, client must resubmit
  */
 export async function PATCH(req: Request, { params }: Params) {
   try {
@@ -63,6 +65,7 @@ export async function PATCH(req: Request, { params }: Params) {
 
   const { action, verificationNote } = parsed.data
 
+  // ── FLAG ──────────────────────────────────────────────────────
   if (action === "FLAG") {
     const payment = await flagPaymentRecord(paymentId, actor.id, verificationNote)
     await logAction({
@@ -75,8 +78,7 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json(payment)
   }
 
-  // ── VERIFY ────────────────────────────────────────────────────
-
+  // ── VERIFY: DEPOSIT ───────────────────────────────────────────
   if (existing.paymentType === "DEPOSIT") {
     const payment = await verifyDepositPaymentRecord(
       paymentId,
@@ -94,33 +96,39 @@ export async function PATCH(req: Request, { params }: Params) {
     return NextResponse.json(payment)
   }
 
-  // INSTALLMENT — must have a linked installmentId on the payment record
-  // (set at submission time via submitPaymentSchema.installmentId)
-  const installmentPayment = await getPaymentById(paymentId)
-  if (!installmentPayment) {
-    return NextResponse.json({ error: "Payment not found" }, { status: 404 })
-  }
-
-  // Retrieve the installmentId from the DB — stored via the Installment relation
-  const { prisma } = await import("@/lib/prisma")
-  const installment = await prisma.installment.findFirst({
-    where: { bookingId: existing.bookingId, paymentId: null, status: "UNPAID" },
-    orderBy: { order: "asc" },
+  // ── VERIFY: INSTALLMENT ───────────────────────────────────────
+  // FIX: Read installmentId directly from the payment record.
+  // It was stored there when the client submitted (createPaymentRecord).
+  // Previously the route was doing findFirst(UNPAID) which could pick
+  // the wrong installment if multiple were unpaid.
+  const fullPayment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: { installmentId: true },
   })
 
-  // The installmentId was submitted in the payment body — find it on the record
-  const targetInstallment = await prisma.installment.findFirst({
-    where: {
-      bookingId: existing.bookingId,
-      status:    "UNPAID",
-      paymentId: null,
-    },
-    orderBy: { order: "asc" },
+  if (!fullPayment?.installmentId) {
+    return NextResponse.json(
+      { error: "This installment payment has no linked installment. It may have been submitted before this fix was applied — please contact support." },
+      { status: 409 },
+    )
+  }
+
+  // Confirm the installment still exists and is UNPAID
+  const targetInstallment = await prisma.installment.findUnique({
+    where: { id: fullPayment.installmentId },
+    select: { id: true, order: true, status: true },
   })
 
   if (!targetInstallment) {
     return NextResponse.json(
-      { error: "No unpaid installment found for this booking" },
+      { error: "The linked installment no longer exists" },
+      { status: 409 },
+    )
+  }
+
+  if (targetInstallment.status === "PAID") {
+    return NextResponse.json(
+      { error: "This installment is already marked as paid" },
       { status: 409 },
     )
   }

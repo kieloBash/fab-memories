@@ -5,15 +5,18 @@ import { prisma } from "@/lib/prisma"
 import type { CreateInstallmentScheduleInput } from "./installments.schema"
 
 const WITH_PAYMENT = {
-  payment: {
+  payments: {
     select: {
       id: true,
       amount: true,
       method: true,
       referenceNumber: true,
       proofStoragePath: true,
+      status: true,
       verifiedAt: true,
     },
+    orderBy: { createdAt: "desc" as const },
+    take: 1, // most recent payment for this installment
   },
 } as const
 
@@ -37,22 +40,42 @@ export async function getInstallmentById(id: string) {
 // ── Mutations ─────────────────────────────────────────────────
 
 /**
- * Creates the full installment schedule for a booking.
- * Called by admin after booking is confirmed and contract is agreed.
- * Replaces any existing schedule for this booking.
+ * Creates / replaces the installment schedule for a booking.
+ *
+ * FIX: Previously deleted all UNPAID installments and re-created
+ * from order 1 — causing duplicate order numbers when PAID installments
+ * existed. Now:
+ *   1. Only deletes UNPAID installments (PAID are locked in)
+ *   2. New rows are numbered starting AFTER the highest PAID order
+ *      so order numbers are always unique and sequential
+ *   3. Input orders are re-mapped to the correct offset
  */
 export async function createInstallmentScheduleRecord(
   bookingId: string,
   input: CreateInstallmentScheduleInput,
 ) {
   return prisma.$transaction(async (tx) => {
-    // Clear any existing schedule first
-    await tx.installment.deleteMany({ where: { bookingId, status: "UNPAID" } })
+    // Find the highest order among PAID installments (locked in)
+    const paidInstallments = await tx.installment.findMany({
+      where: { bookingId, status: "PAID" },
+      orderBy: { order: "desc" },
+      take: 1,
+      select: { order: true },
+    })
 
+    const paidOrderOffset = paidInstallments[0]?.order ?? 0
+
+    // Delete only UNPAID installments — never touch PAID ones
+    await tx.installment.deleteMany({
+      where: { bookingId, status: "UNPAID" },
+    })
+
+    // Re-create with orders starting after the last PAID order
     return tx.installment.createMany({
-      data: input.installments.map((item) => ({
+      data: input.installments.map((item, idx) => ({
         bookingId,
-        order:   item.order,
+        // Offset order so it never collides with PAID rows
+        order:   paidOrderOffset + idx + 1,
         dueDate: new Date(item.dueDate),
         amount:  item.amount,
         note:    item.note ?? null,

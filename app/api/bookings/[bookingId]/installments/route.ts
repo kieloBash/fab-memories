@@ -14,9 +14,9 @@ type Params = { params: Promise<{ bookingId: string }> }
 
 /**
  * GET /api/bookings/[bookingId]/installments
- * Returns the installment schedule for a booking, ordered by due date.
+ * Returns installments ordered by order ASC.
  * - ADMIN / COORDINATOR: any booking
- * - CLIENT: only their own booking
+ * - CLIENT: own bookings only
  */
 export async function GET(_req: Request, { params }: Params) {
   let role: string
@@ -47,9 +47,13 @@ export async function GET(_req: Request, { params }: Params) {
 
 /**
  * POST /api/bookings/[bookingId]/installments
- * Admin creates the installment schedule per contract terms.
- * Booking must be CONFIRMED (deposit verified) before a schedule can be set.
- * Replaces any existing UNPAID installments.
+ * Creates / replaces the installment schedule. ADMIN only.
+ * Booking must be CONFIRMED.
+ *
+ * FIX: createInstallmentScheduleRecord now preserves PAID installments
+ * and offsets new order numbers after the last PAID order.
+ *
+ * Returns { count, paidCount } so the form can initialize at the right offset.
  */
 export async function POST(req: Request, { params }: Params) {
   try {
@@ -94,7 +98,7 @@ export async function POST(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "PAYMENT",
-    description: `Admin "${actor.fullName}" created installment schedule (${result.count} installments) for booking ${bookingId}`,
+    description: `Admin "${actor.fullName}" set installment schedule (${result.count} new installments) for booking ${bookingId}`,
     metadata:    { bookingId, count: result.count },
   })
 

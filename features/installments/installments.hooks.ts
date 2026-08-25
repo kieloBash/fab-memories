@@ -4,22 +4,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/lib/axios"
-import { installmentKeys, paymentKeys } from "./installments.constants"
+import { installmentKeys } from "./installments.constants"
 import { createInstallmentSchedule, fetchInstallments } from "./installments.api"
 import type { CreateInstallmentScheduleInput } from "./installments.schema"
-import type { InstallmentSummary } from "./installments.types"
-
-// ── Queries ───────────────────────────────────────────────────
+import { InstallmentSummary } from "./installments.types"
 
 export function useInstallments(bookingId: string) {
   return useQuery({
     queryKey: installmentKeys.byBooking(bookingId),
-    queryFn:  () => fetchInstallments(bookingId),
-    enabled:  !!bookingId,
+    queryFn: () => fetchInstallments(bookingId),
+    enabled: !!bookingId,
     select: (installments): InstallmentSummary => {
       const totalAmount = installments.reduce(
-        (sum, i) => sum + Number(i.amount),
-        0,
+        (sum, i) => sum + Number(i.amount), 0,
       )
       const totalPaid = installments
         .filter((i) => i.status === "PAID")
@@ -35,8 +32,6 @@ export function useInstallments(bookingId: string) {
   })
 }
 
-// ── Mutations ─────────────────────────────────────────────────
-
 export function useCreateInstallmentSchedule(bookingId: string) {
   const queryClient = useQueryClient()
 
@@ -44,11 +39,9 @@ export function useCreateInstallmentSchedule(bookingId: string) {
     mutationFn: (input: CreateInstallmentScheduleInput) =>
       createInstallmentSchedule(bookingId, input),
     onSuccess: (data) => {
-      queryClient.invalidateQueries({
-        queryKey: installmentKeys.byBooking(bookingId),
-      })
+      queryClient.invalidateQueries({ queryKey: installmentKeys.byBooking(bookingId) })
       toast.success(
-        `Installment schedule created — ${data.count} installment${data.count !== 1 ? "s" : ""} added`,
+        `Schedule saved — ${data.count} installment${data.count !== 1 ? "s" : ""} added`,
       )
     },
     onError: (error) => {

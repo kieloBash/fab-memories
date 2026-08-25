@@ -42,8 +42,8 @@ import "dotenv/config"
 // ── Clients ───────────────────────────────────────────────────
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
-const prisma  = new PrismaClient({ adapter })
-const clerk   = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! })
+const prisma = new PrismaClient({ adapter })
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! })
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -56,12 +56,12 @@ function pastDate(days: number): Date {
 
 async function cleanupClerkUser(email: string, clerkId?: string) {
   if (clerkId) {
-    try { await clerk.users.deleteUser(clerkId); console.log(`    🗑  Clerk ${clerkId}`) } catch {}
+    try { await clerk.users.deleteUser(clerkId); console.log(`    🗑  Clerk ${clerkId}`) } catch { }
   }
   try {
     const r = await clerk.users.getUserList({ emailAddress: [email], limit: 1 })
     if (r.data.length) { await clerk.users.deleteUser(r.data[0].id); console.log(`    🗑  Clerk (orphan) ${email}`) }
-  } catch {}
+  } catch { }
 }
 
 async function cleanupUser(u: { username: string; email: string }) {
@@ -97,19 +97,19 @@ async function createUser(u: {
 // ── Seed definitions ──────────────────────────────────────────
 
 const USERS = [
-  { username: process.env.SEED_ADMIN_USERNAME ?? "admin",       password: process.env.SEED_ADMIN_PASSWORD ?? "FabMemories123!", fullName: process.env.SEED_ADMIN_FULLNAME ?? "System Administrator", email: process.env.SEED_ADMIN_EMAIL ?? "admin.fabmemories@example.com",       role: Role.ADMIN },
-  { username: "coordinator", password: "FabMemories123!", fullName: "Maria Santos",   email: "coordinator.fabmemories@example.com", role: Role.COORDINATOR },
-  { username: "vendor",      password: "FabMemories123!", fullName: "Juan dela Cruz", email: "vendor.fabmemories@example.com",      role: Role.VENDOR },
-  { username: "client_anna", password: "FabMemories123!", fullName: "Anna Reyes",     email: "anna.fabmemories@example.com",        role: Role.CLIENT },
-  { username: "client_ben",  password: "FabMemories123!", fullName: "Ben Torres",     email: "ben.fabmemories@example.com",         role: Role.CLIENT },
+  { username: process.env.SEED_ADMIN_USERNAME ?? "admin", password: process.env.SEED_ADMIN_PASSWORD ?? "FabMemories123!", fullName: process.env.SEED_ADMIN_FULLNAME ?? "System Administrator", email: process.env.SEED_ADMIN_EMAIL ?? "admin.fabmemories@example.com", role: Role.ADMIN },
+  { username: "coordinator", password: "FabMemories123!", fullName: "Maria Santos", email: "coordinator.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "vendor", password: "FabMemories123!", fullName: "Juan dela Cruz", email: "vendor.fabmemories@example.com", role: Role.VENDOR },
+  { username: "client_anna", password: "FabMemories123!", fullName: "Anna Reyes", email: "anna.fabmemories@example.com", role: Role.CLIENT },
+  { username: "client_ben", password: "FabMemories123!", fullName: "Ben Torres", email: "ben.fabmemories@example.com", role: Role.CLIENT },
 ]
 
 const PACKAGES = [
-  { name: "Classic Wedding Package",   eventType: EventType.WEDDING,   price: 85000,  description: "Elegant, all-inclusive wedding for intimate ceremonies.",               inclusions: ["8-hour coverage", "Bridal car decoration", "Floral centerpieces (10 tables)", "Wedding cake (3 tiers)", "Sound system & emcee", "Photo & video coverage", "Coordinator on-site"] },
-  { name: "Grand Wedding Package",     eventType: EventType.WEDDING,   price: 150000, description: "Full-scale wedding production with premium add-ons.",                   inclusions: ["12-hour coverage", "Bridal car decoration", "Floral arch & centerpieces (20 tables)", "Premium wedding cake (5 tiers)", "Full band & emcee", "Cinematic photo & video", "Drone shots", "Pre-nuptial shoot", "Two coordinators"] },
-  { name: "Elegant Debut Package",     eventType: EventType.DEBUT,     price: 65000,  description: "Memorable 18th birthday celebration for the debutante.",                inclusions: ["8-hour coverage", "18 roses & 18 candles ceremony", "Gown styling assistance", "Floral centerpieces (8 tables)", "Debut cake (3 tiers)", "DJ & sound system", "Photo & video coverage", "Coordinator on-site"] },
-  { name: "Corporate Events Package",  eventType: EventType.CORPORATE, price: 50000,  description: "Professional event management for launches, conferences, and galas.",   inclusions: ["6-hour coverage", "Corporate backdrop & branding", "LED screen & projector", "Sound system & microphones", "Professional emcee", "Event documentation (photo)", "Coordinator on-site"] },
-  { name: "Birthday Celebration Package", eventType: EventType.BIRTHDAY, price: 30000, description: "Fun and festive birthday party setup for all ages.",                  inclusions: ["5-hour coverage", "Themed balloon decorations", "Birthday cake (2 tiers)", "Photo booth with props", "DJ & sound system", "Coordinator on-site"] },
+  { name: "Classic Wedding Package", eventType: EventType.WEDDING, price: 85000, description: "Elegant, all-inclusive wedding for intimate ceremonies.", inclusions: ["8-hour coverage", "Bridal car decoration", "Floral centerpieces (10 tables)", "Wedding cake (3 tiers)", "Sound system & emcee", "Photo & video coverage", "Coordinator on-site"] },
+  { name: "Grand Wedding Package", eventType: EventType.WEDDING, price: 150000, description: "Full-scale wedding production with premium add-ons.", inclusions: ["12-hour coverage", "Bridal car decoration", "Floral arch & centerpieces (20 tables)", "Premium wedding cake (5 tiers)", "Full band & emcee", "Cinematic photo & video", "Drone shots", "Pre-nuptial shoot", "Two coordinators"] },
+  { name: "Elegant Debut Package", eventType: EventType.DEBUT, price: 65000, description: "Memorable 18th birthday celebration for the debutante.", inclusions: ["8-hour coverage", "18 roses & 18 candles ceremony", "Gown styling assistance", "Floral centerpieces (8 tables)", "Debut cake (3 tiers)", "DJ & sound system", "Photo & video coverage", "Coordinator on-site"] },
+  { name: "Corporate Events Package", eventType: EventType.CORPORATE, price: 50000, description: "Professional event management for launches, conferences, and galas.", inclusions: ["6-hour coverage", "Corporate backdrop & branding", "LED screen & projector", "Sound system & microphones", "Professional emcee", "Event documentation (photo)", "Coordinator on-site"] },
+  { name: "Birthday Celebration Package", eventType: EventType.BIRTHDAY, price: 30000, description: "Fun and festive birthday party setup for all ages.", inclusions: ["5-hour coverage", "Themed balloon decorations", "Birthday cake (2 tiers)", "Photo booth with props", "DJ & sound system", "Coordinator on-site"] },
 ]
 
 // ── Main ──────────────────────────────────────────────────────
@@ -118,7 +118,7 @@ async function main() {
   console.log("\n🌱  Starting seed (Modules 1, 2 & 3 — corrected payment flow)…")
 
   if (!process.env.CLERK_SECRET_KEY) throw new Error("CLERK_SECRET_KEY is required.")
-  if (!process.env.DATABASE_URL)     throw new Error("DATABASE_URL is required.")
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.")
 
   // ── Cleanup (order: installments → payments → bookings → packages → users)
   console.log("\n🧹  Cleaning up…")
@@ -151,14 +151,14 @@ async function main() {
   // Anna — Debut CONFIRMED (deposit will be verified below)
   const annaDebut = await prisma.booking.create({
     data: {
-      clientId:  ids["client_anna"],
+      clientId: ids["client_anna"],
       packageId: pkgMap[EventType.DEBUT],
       eventType: EventType.DEBUT,
       eventDate: futureDate(45),
-      venue:     "Waterfront Hotel, Lahug, Cebu City",
+      venue: "Waterfront Hotel, Lahug, Cebu City",
       guestCount: 200,
-      status:    BookingStatus.PENDING, // will flip to CONFIRMED via deposit verification below
-      notes:     "Gold and white color motif.",
+      status: BookingStatus.PENDING, // will flip to CONFIRMED via deposit verification below
+      notes: "Gold and white color motif.",
     },
   })
   console.log(`  ✅  PENDING (will confirm)  | Anna | Debut    +45d  id=${annaDebut.id}`)
@@ -166,13 +166,13 @@ async function main() {
   // Ben — Corporate PENDING deposit submitted
   const benCorp = await prisma.booking.create({
     data: {
-      clientId:  ids["client_ben"],
+      clientId: ids["client_ben"],
       packageId: pkgMap[EventType.CORPORATE],
       eventType: EventType.CORPORATE,
       eventDate: futureDate(60),
-      venue:     "Radisson Blu, Cebu City",
+      venue: "Radisson Blu, Cebu City",
       guestCount: 300,
-      status:    BookingStatus.PENDING,
+      status: BookingStatus.PENDING,
     },
   })
   console.log(`  ✅  PENDING                | Ben  | Corporate +60d id=${benCorp.id}`)
@@ -197,15 +197,15 @@ async function main() {
   // ── Anna Debut — deposit VERIFIED → booking CONFIRMED ──────
   const annaDeposit = await prisma.payment.create({
     data: {
-      bookingId:       annaDebut.id,
-      paymentType:     PaymentType.DEPOSIT,
-      method:          PaymentMethod.GCASH,
-      status:          PaymentStatus.VERIFIED,
-      amount:          19500,             // 30% of 65000
+      bookingId: annaDebut.id,
+      paymentType: PaymentType.DEPOSIT,
+      method: PaymentMethod.GCASH,
+      status: PaymentStatus.VERIFIED,
+      amount: 19500,             // 30% of 65000
       referenceNumber: "GC-20250001",
-      submittedAt:     pastDate(20),
-      verifiedById:    ids["coordinator"],
-      verifiedAt:      pastDate(19),
+      submittedAt: pastDate(20),
+      verifiedById: ids["coordinator"],
+      verifiedAt: pastDate(19),
       verificationNote: "Deposit confirmed. Booking is now active.",
     },
   })
@@ -213,8 +213,8 @@ async function main() {
   await prisma.booking.update({
     where: { id: annaDebut.id },
     data: {
-      status:              BookingStatus.CONFIRMED,
-      depositVerifiedAt:   pastDate(19),
+      status: BookingStatus.CONFIRMED,
+      depositVerifiedAt: pastDate(19),
       depositVerifiedById: ids["coordinator"],
     },
   })
@@ -235,37 +235,41 @@ async function main() {
   console.log(`  ✅  3 installments created (₱19,500 + ₱13,000 + ₱13,000 = ₱45,500 remaining)`)
 
   // ── Installment #1 — VERIFIED payment (PAID) ───────────────
-  const inst1Payment = await prisma.payment.create({
+  // FIX: relation flipped — installmentId lives on Payment, not on Installment.
+  // Create the payment with installmentId set, then mark the installment PAID separately.
+  await prisma.payment.create({
     data: {
-      bookingId:       annaDebut.id,
-      paymentType:     PaymentType.INSTALLMENT,
-      method:          PaymentMethod.BANK_TRANSFER,
-      status:          PaymentStatus.VERIFIED,
-      amount:          19500,
+      bookingId: annaDebut.id,
+      paymentType: PaymentType.INSTALLMENT,
+      method: PaymentMethod.BANK_TRANSFER,
+      status: PaymentStatus.VERIFIED,
+      amount: 19500,
       referenceNumber: "BT-20250010",
-      submittedAt:     pastDate(11),
-      verifiedById:    ids["coordinator"],
-      verifiedAt:      pastDate(10),
+      submittedAt: pastDate(11),
+      verifiedById: ids["coordinator"],
+      verifiedAt: pastDate(10),
       verificationNote: "Bank transfer confirmed.",
+      installmentId: installments[0].id, // link to installment #1
     },
   })
-  // Link payment to installment #1 and mark it PAID
+  // Mark installment #1 as PAID
   await prisma.installment.update({
     where: { id: installments[0].id },
-    data:  { paymentId: inst1Payment.id },
+    data: { status: InstallmentStatus.PAID, paidAt: pastDate(10) },
   })
   console.log(`  ✅  INSTALLMENT #1 VERIFIED  | Anna | Bank BT-20250010 → #1 PAID`)
 
   // ── Installment #2 — SUBMITTED (awaiting verification) ─────
-  const inst2Payment = await prisma.payment.create({
+  await prisma.payment.create({
     data: {
-      bookingId:       annaDebut.id,
-      paymentType:     PaymentType.INSTALLMENT,
-      method:          PaymentMethod.GCASH,
-      status:          PaymentStatus.SUBMITTED,
-      amount:          13000,
+      bookingId: annaDebut.id,
+      paymentType: PaymentType.INSTALLMENT,
+      method: PaymentMethod.GCASH,
+      status: PaymentStatus.SUBMITTED,
+      amount: 13000,
       referenceNumber: "GC-20250055",
-      submittedAt:     pastDate(1),
+      submittedAt: pastDate(1),
+      installmentId: installments[1].id, // link to installment #2
     },
   })
   console.log(`  ✅  INSTALLMENT #2 SUBMITTED | Anna | GCash GC-20250055 (awaiting verification)`)
@@ -273,13 +277,13 @@ async function main() {
   // ── Ben Corp — deposit SUBMITTED (pending verification) ─────
   await prisma.payment.create({
     data: {
-      bookingId:       benCorp.id,
-      paymentType:     PaymentType.DEPOSIT,
-      method:          PaymentMethod.MAYA,
-      status:          PaymentStatus.SUBMITTED,
-      amount:          15000,             // 30% of 50000
+      bookingId: benCorp.id,
+      paymentType: PaymentType.DEPOSIT,
+      method: PaymentMethod.MAYA,
+      status: PaymentStatus.SUBMITTED,
+      amount: 15000,             // 30% of 50000
       referenceNumber: "MY-20250007",
-      submittedAt:     new Date(),
+      submittedAt: new Date(),
     },
   })
   console.log(`  ✅  DEPOSIT SUBMITTED | Ben  | Maya MY-20250007 (awaiting verification)`)

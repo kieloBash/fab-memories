@@ -13,6 +13,17 @@ interface SidebarLinkProps {
   label: string;
   icon: string;
   collapsed?: boolean;
+  /**
+   * When true, only marks active on exact pathname match.
+   * Use for index/dashboard routes that are also a prefix of all child routes
+   * (e.g. /staff/admin matches /staff/admin/bookings via startsWith).
+   */
+  exact?: boolean;
+  /**
+   * Prefix for the Framer Motion layoutId so desktop sidebar and
+   * mobile drawer don't share the same animated element and cause flicker.
+   */
+  layoutIdPrefix?: string;
 }
 
 export default function SidebarLink({
@@ -20,10 +31,16 @@ export default function SidebarLink({
   label,
   icon,
   collapsed = false,
+  exact = false,
+  layoutIdPrefix = "sidebar",
 }: SidebarLinkProps) {
   const pathname = usePathname();
-  const isActive = pathname === href || pathname.startsWith(href + "/");
   const Icon = NAV_ICONS[icon];
+
+  // Exact match for index/dashboard routes; prefix match for everything else.
+  const isActive = exact
+    ? pathname === href
+    : pathname === href || pathname.startsWith(href + "/");
 
   return (
     <Link href={href} className="block" title={collapsed ? label : undefined}>
@@ -39,24 +56,26 @@ export default function SidebarLink({
             : "text-text-sub hover:bg-primary-soft/50 hover:text-primary"
         )}
       >
-        {/* Active indicator bar */}
+        {/* Active left bar — scoped layoutId prevents desktop/mobile clash */}
         {isActive && (
           <motion.span
-            layoutId="sidebar-active"
+            layoutId={`${layoutIdPrefix}-active`}
             className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-primary rounded-full"
             transition={{ type: "spring", stiffness: 380, damping: 30 }}
             aria-hidden="true"
           />
         )}
 
-        <Icon
-          size={18}
-          aria-hidden="true"
-          className={cn(
-            "shrink-0 transition-colors",
-            isActive ? "text-primary" : "text-text-muted"
-          )}
-        />
+        {Icon && (
+          <Icon
+            size={18}
+            aria-hidden="true"
+            className={cn(
+              "shrink-0 transition-colors",
+              isActive ? "text-primary" : "text-text-muted"
+            )}
+          />
+        )}
 
         {!collapsed && (
           <span className="truncate tracking-tight">{label}</span>

@@ -1,14 +1,15 @@
 // features/bookings/bookings.query.ts
 "use server"
 
-import { prisma } from "@/lib/prisma"
 import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
+import { prisma } from "@/lib/prisma"
 import type { CreateBookingInput } from "./bookings.schema"
 
 const WITH_RELATIONS = {
   client: { select: { id: true, fullName: true, email: true, username: true } },
   package: true,
   confirmedBy: { select: { id: true, fullName: true, role: true } },
+  payments: true,
 } as const
 
 // ── Queries ───────────────────────────────────────────────────

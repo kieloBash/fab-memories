@@ -1,4 +1,6 @@
 // prisma/schema.prisma
+// CHANGED: Added installmentId String? to Payment model so the specific
+// installment a payment covers is stored at submission time, not guessed at verify time.
 
 generator client {
   provider = "prisma-client"
@@ -63,26 +65,24 @@ enum EventType {
   OTHER
 }
 
-// ── Module 3 enums ────────────────────────────────────────────
-
 enum PaymentMethod {
   GCASH
   MAYA
   BANK_TRANSFER
-  CHEQUE       // deposit only — enforced in application layer
+  CHEQUE
   CASH
 }
 
 enum PaymentType {
-  DEPOSIT      // reservation deposit — verification triggers booking confirmation
-  INSTALLMENT  // subsequent payments per contract schedule
+  DEPOSIT
+  INSTALLMENT
 }
 
 enum PaymentStatus {
-  PENDING      // created but client has not submitted proof yet
-  SUBMITTED    // client uploaded proof, awaiting staff verification
-  VERIFIED     // staff confirmed payment received
-  FLAGGED      // staff flagged as invalid — client must resubmit
+  PENDING
+  SUBMITTED
+  VERIFIED
+  FLAGGED
 }
 
 enum InstallmentStatus {
@@ -106,9 +106,9 @@ model User {
   updatedAt DateTime @updatedAt
 
   auditLogs        AuditLog[]
-  bookings         Booking[]           // CLIENT bookings
-  confirmedBy      Booking[]           @relation("BookingConfirmedBy")
-  verifiedPayments Payment[]           @relation("PaymentVerifiedBy")
+  bookings         Booking[]
+  confirmedBy      Booking[]  @relation("BookingConfirmedBy")
+  verifiedPayments Payment[]  @relation("PaymentVerifiedBy")
 
   @@index([role])
 }
@@ -147,28 +147,24 @@ model Package {
 }
 
 model Booking {
-  id                 String        @id @default(cuid())
-  clientId           String
-  client             User          @relation(fields: [clientId], references: [id])
-  packageId          String
-  package            Package       @relation(fields: [packageId], references: [id])
-  eventType          EventType
-  eventDate          DateTime      @db.Date
-  eventTime          DateTime?     @db.Time
-  venue              String
-  guestCount         Int
-  status             BookingStatus @default(PENDING)
-  notes              String?
-
-  // Populated when the reservation deposit is verified by staff.
-  // This is the trigger that moves status → CONFIRMED.
+  id                  String        @id @default(cuid())
+  clientId            String
+  client              User          @relation(fields: [clientId], references: [id])
+  packageId           String
+  package             Package       @relation(fields: [packageId], references: [id])
+  eventType           EventType
+  eventDate           DateTime      @db.Date
+  eventTime           DateTime?     @db.Time
+  venue               String
+  guestCount          Int
+  status              BookingStatus @default(PENDING)
+  notes               String?
   depositVerifiedAt   DateTime?
   depositVerifiedById String?
   confirmedBy         User?         @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
-
-  cancellationReason String?
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  cancellationReason  String?
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
   payments     Payment[]
   installments Installment[]
@@ -179,59 +175,53 @@ model Booking {
   @@index([packageId])
 }
 
-// ── Module 3 — Payments & Installments ───────────────────────
-
 model Payment {
-  id              String        @id @default(cuid())
-  bookingId       String
-  booking         Booking       @relation(fields: [bookingId], references: [id])
+  id               String        @id @default(cuid())
+  bookingId        String
+  booking          Booking       @relation(fields: [bookingId], references: [id])
+  paymentType      PaymentType
+  method           PaymentMethod
+  status           PaymentStatus @default(PENDING)
+  amount           Decimal       @db.Decimal(10, 2)
+  proofImageUrl    String?
+  proofStoragePath String?
+  referenceNumber  String?
 
-  paymentType     PaymentType   // DEPOSIT | INSTALLMENT
-  method          PaymentMethod
-  status          PaymentStatus @default(PENDING)
-  amount          Decimal       @db.Decimal(10, 2)
+  // ── NEW: explicitly stores which installment this payment covers ──
+  // Set at submission time so verify route never has to guess.
+  // Null for DEPOSIT payments.
+  installmentId    String?
+  installment      Installment?  @relation("InstallmentPayment", fields: [installmentId], references: [id])
 
-  // Proof of payment — one of these will be set on submission
-  proofImageUrl   String?       // Supabase Storage signed path
-  proofStoragePath String?      // raw storage path for signed URL generation
-  referenceNumber String?       // for GCash / Maya / bank transfer ref no.
-
-  // Verification
-  verifiedById    String?
-  verifiedBy      User?         @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
-  verifiedAt      DateTime?
+  verifiedById     String?
+  verifiedBy       User?         @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
+  verifiedAt       DateTime?
   verificationNote String?
-
-  submittedAt     DateTime?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
-
-  // If this payment covers an installment, link it here
-  installment     Installment?  @relation("InstallmentPayment")
+  submittedAt      DateTime?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
 
   @@index([bookingId])
   @@index([status])
   @@index([paymentType])
+  @@index([installmentId])
 }
 
 model Installment {
   id        String            @id @default(cuid())
   bookingId String
   booking   Booking           @relation(fields: [bookingId], references: [id])
-
-  order     Int               // 1-based position in the schedule
+  order     Int
   dueDate   DateTime          @db.Date
   amount    Decimal           @db.Decimal(10, 2)
   status    InstallmentStatus @default(UNPAID)
-  note      String?           // admin note when creating the schedule
-
-  // Linked when a VERIFIED INSTALLMENT payment covers this installment
-  paymentId String?           @unique
-  payment   Payment?          @relation("InstallmentPayment", fields: [paymentId], references: [id])
-
-  paidAt    DateTime?         // set when status flips to PAID
+  note      String?
+  paidAt    DateTime?
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
+
+  // Back-ref: payments that cover this installment
+  payments  Payment[]         @relation("InstallmentPayment")
 
   @@index([bookingId])
   @@index([status])

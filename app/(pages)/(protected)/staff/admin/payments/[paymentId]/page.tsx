@@ -1,109 +1,239 @@
-// app/(pages)/(protected)/(staff)/staff/admin/payments/[paymentId]/page.tsx
-"use client"
+// app/(pages)/(protected)/staff/admin/payments/[paymentId]/page.tsx
 
-import { use } from "react"
-import { useRouter } from "next/navigation"
-import { usePayment, PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from "@/features/payments"
-import { PaymentStatusBadge } from "@/features/payments/components/payment-status-badge"
-import { PaymentVerificationForm } from "@/features/payments/components/payment-verification-form"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, ExternalLink } from "lucide-react"
+"use client";
+
+import { use, useState } from "react";
+import { useRouter } from "next/navigation";
+import { motion } from "framer-motion";
+import {
+  usePayment,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_TYPE_LABELS,
+} from "@/features/payments";
+import { PaymentStatusBadge } from "@/features/payments/components/payment-status-badge";
+import { PaymentVerificationForm } from "@/features/payments/components/payment-verification-form";
+import { PageHeader } from "@/components/ui/page-header";
+import { Button } from "@/components/ui/button";
+import {
+  ArrowLeft,
+  CreditCard,
+  ExternalLink,
+  User,
+  CalendarDays,
+  Hash,
+  ImageIcon,
+  Maximize2,
+} from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 
 interface Props { params: Promise<{ paymentId: string }> }
 
+const fmt = (n: string | number) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(Number(n));
+
+const fmtDate = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" })
+    : "—";
+
 export default function AdminPaymentDetailPage({ params }: Props) {
-  const { paymentId } = use(params)
-  const router = useRouter()
-  const { data: payment, isLoading, isError } = usePayment(paymentId)
+  const { paymentId } = use(params);
+  const router = useRouter();
+  const { data: payment, isLoading, isError } = usePayment(paymentId);
+  const [proofOpen, setProofOpen] = useState(false);
 
-  if (isLoading) return <p className="p-8 text-muted-foreground">Loading…</p>
-  if (isError || !payment) return <p className="p-8 text-destructive">Payment not found.</p>
-
-  const fmt = (n: string | number) =>
-    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n))
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-4">
+        {[1, 2].map((i) => (
+          <div key={i} className="h-40 rounded-xl border border-border bg-white animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+  if (isError || !payment) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-[13px] text-red-600">
+        Payment not found.
+      </div>
+    );
+  }
 
   return (
-    <div className="container max-w-2xl space-y-6 py-8">
-      <Button variant="ghost" size="sm" onClick={() => router.back()}>
-        <ArrowLeft className="mr-2 size-4" /> Back
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      className="flex flex-col gap-6"
+    >
+      {/* Back */}
+      <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 w-fit">
+        <ArrowLeft size={15} aria-hidden="true" />
+        Back
       </Button>
 
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {PAYMENT_TYPE_LABELS[payment.paymentType]}
-          </p>
-          <h1 className="text-2xl font-bold">{fmt(payment.amount)}</h1>
+      <PageHeader
+        title={fmt(payment.amount)}
+        subtitle={PAYMENT_TYPE_LABELS[payment.paymentType]}
+        icon={CreditCard}
+        actions={<PaymentStatusBadge status={payment.status} />}
+      />
+
+      {/* Two-column on large screens */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_300px]">
+
+        {/* ── Left: details + verification ── */}
+        <div className="flex flex-col gap-5">
+
+          {/* Payment details */}
+          <div className="rounded-xl border border-border bg-white p-5 space-y-4">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+              Payment details
+            </p>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {[
+                { icon: User,        label: "Client",      value: payment.booking.client.fullName },
+                { icon: CreditCard,  label: "Method",      value: PAYMENT_METHOD_LABELS[payment.method] },
+                { icon: CalendarDays, label: "Submitted",  value: fmtDate(payment.submittedAt) },
+                ...(payment.referenceNumber
+                  ? [{ icon: Hash, label: "Reference no.", value: payment.referenceNumber }]
+                  : []),
+                ...(payment.verifiedBy
+                  ? [{ icon: User, label: "Actioned by", value: payment.verifiedBy.fullName }]
+                  : []),
+                ...(payment.verifiedAt
+                  ? [{ icon: CalendarDays, label: "Actioned on", value: fmtDate(payment.verifiedAt) }]
+                  : []),
+              ].map(({ icon: Icon, label, value }) => (
+                <div key={label} className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
+                    <Icon size={14} className="text-primary" aria-hidden="true" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-text-muted">{label}</p>
+                    <p className="text-[13px] font-medium text-text-main">{value}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {payment.verificationNote && (
+              <div className="rounded-lg bg-background-blush p-3 border border-border">
+                <p className="text-[11px] text-text-muted mb-0.5">Staff note</p>
+                <p className="text-[13px] text-text-sub">{payment.verificationNote}</p>
+              </div>
+            )}
+
+            {/* Booking link */}
+            <button
+              onClick={() => router.push(`/staff/admin/bookings/${payment.bookingId}`)}
+              className="flex items-center gap-1.5 text-[12px] text-primary hover:underline underline-offset-4"
+            >
+              <ExternalLink size={12} aria-hidden="true" />
+              View booking
+            </button>
+          </div>
+
+          {/* Verification form — only for SUBMITTED */}
+          {payment.status === "SUBMITTED" && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.35, ease: "easeOut" }}
+              className="rounded-xl border-2 border-primary/20 bg-white p-5 space-y-4"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-primary animate-pulse" aria-hidden="true" />
+                <p className="text-[13px] font-semibold text-text-main">
+                  Staff verification required
+                </p>
+              </div>
+              <p className="text-[12px] text-text-muted">
+                {payment.paymentType === "DEPOSIT"
+                  ? "Verifying this deposit will confirm the client's booking."
+                  : "Verifying this payment will mark the linked installment as paid."}
+              </p>
+              <PaymentVerificationForm
+                paymentId={payment.id}
+                paymentType={payment.paymentType}
+                onSuccess={() => router.refresh()}
+              />
+            </motion.div>
+          )}
         </div>
-        <PaymentStatusBadge status={payment.status} />
+
+        {/* ── Right: proof image ── */}
+        <div className="flex flex-col gap-4">
+          <div className="rounded-xl border border-border bg-white p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+                Proof of payment
+              </p>
+              {payment.proofImageUrl && (
+                <button
+                  onClick={() => setProofOpen(true)}
+                  className="flex items-center gap-1 text-[11px] text-primary hover:underline underline-offset-4 cursor-pointer"
+                  aria-label="Expand proof image"
+                >
+                  <Maximize2 size={11} aria-hidden="true" />
+                  Expand
+                </button>
+              )}
+            </div>
+
+            {payment.proofImageUrl ? (
+              <button
+                onClick={() => setProofOpen(true)}
+                className="block w-full overflow-hidden rounded-lg border border-border cursor-zoom-in"
+                aria-label="View proof of payment"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={payment.proofImageUrl}
+                  alt="Proof of payment"
+                  className="w-full object-cover max-h-64 hover:scale-105 transition-transform duration-200"
+                />
+              </button>
+            ) : (
+              <div className="flex flex-col items-center justify-center gap-2 h-32 rounded-lg border border-dashed border-border bg-background-blush">
+                <ImageIcon size={20} className="text-text-muted" aria-hidden="true" />
+                <p className="text-[12px] text-text-muted">
+                  {payment.referenceNumber
+                    ? "Reference number submitted (no image)"
+                    : "No proof uploaded yet"}
+                </p>
+              </div>
+            )}
+
+            {payment.referenceNumber && (
+              <div className="rounded-lg bg-background-blush border border-border px-3 py-2">
+                <p className="text-[11px] text-text-muted mb-0.5">Reference number</p>
+                <p className="text-[13px] font-mono font-medium text-text-main">
+                  {payment.referenceNumber}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
-        <dt className="text-muted-foreground">Client</dt>
-        <dd>{payment.booking.client.fullName}</dd>
-
-        <dt className="text-muted-foreground">Booking</dt>
-        <dd>
-          <button
-            onClick={() => router.push(`/staff/admin/bookings/${payment.bookingId}`)}
-            className="flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-          >
-            View Booking <ExternalLink className="size-3" />
-          </button>
-        </dd>
-
-        <dt className="text-muted-foreground">Method</dt>
-        <dd>{PAYMENT_METHOD_LABELS[payment.method]}</dd>
-
-        {payment.referenceNumber && (
-          <>
-            <dt className="text-muted-foreground">Reference No.</dt>
-            <dd className="font-mono">{payment.referenceNumber}</dd>
-          </>
-        )}
-
-        {payment.proofImageUrl && (
-          <>
-            <dt className="text-muted-foreground">Proof</dt>
-            <dd>
-              <a
-                href={payment.proofImageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-primary underline-offset-4 hover:underline"
-              >
-                View Screenshot <ExternalLink className="size-3" />
-              </a>
-            </dd>
-          </>
-        )}
-
-        {payment.verifiedBy && (
-          <>
-            <dt className="text-muted-foreground">Actioned By</dt>
-            <dd>{payment.verifiedBy.fullName}</dd>
-          </>
-        )}
-
-        {payment.verificationNote && (
-          <>
-            <dt className="text-muted-foreground">Note</dt>
-            <dd>{payment.verificationNote}</dd>
-          </>
-        )}
-      </dl>
-
-      {payment.status === "SUBMITTED" && (
-        <>
-          <Separator />
-          <PaymentVerificationForm
-            paymentId={payment.id}
-            paymentType={payment.paymentType}
-            onSuccess={() => router.refresh()}
-          />
-        </>
-      )}
-    </div>
-  )
+      {/* Proof image lightbox */}
+      <Dialog open={proofOpen} onOpenChange={setProofOpen}>
+        <DialogContent className="max-w-3xl p-2">
+          {payment.proofImageUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={payment.proofImageUrl}
+              alt="Proof of payment (full size)"
+              className="w-full rounded-lg object-contain max-h-[80vh]"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
+    </motion.div>
+  );
 }
