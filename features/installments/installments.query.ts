@@ -2,12 +2,27 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import type { CreateInstallmentScheduleInput } from "./installments.schema"
+
+const WITH_PAYMENT = {
+  payment: {
+    select: {
+      id: true,
+      amount: true,
+      method: true,
+      referenceNumber: true,
+      proofStoragePath: true,
+      verifiedAt: true,
+    },
+  },
+} as const
 
 // ── Queries ───────────────────────────────────────────────────
 
-export async function getInstallmentsByPaymentId(paymentId: string) {
+export async function getInstallmentsByBookingId(bookingId: string) {
   return prisma.installment.findMany({
-    where: { paymentId },
+    where: { bookingId },
+    include: WITH_PAYMENT,
     orderBy: { order: "asc" },
   })
 }
@@ -15,56 +30,33 @@ export async function getInstallmentsByPaymentId(paymentId: string) {
 export async function getInstallmentById(id: string) {
   return prisma.installment.findUnique({
     where: { id },
+    include: WITH_PAYMENT,
   })
 }
 
 // ── Mutations ─────────────────────────────────────────────────
 
 /**
- * Generates a simple installment schedule for a payment.
- * Splits the total amount into `count` equal installments,
- * each due `intervalDays` apart starting from `startDate`.
- *
- * Called by the API route after a payment is VERIFIED, or can be
- * created manually by an admin for a booking.
+ * Creates the full installment schedule for a booking.
+ * Called by admin after booking is confirmed and contract is agreed.
+ * Replaces any existing schedule for this booking.
  */
-export async function generateInstallmentSchedule(
-  paymentId: string,
-  totalAmount: number,
-  count: number,
-  startDate: Date,
-  intervalDays = 30,
+export async function createInstallmentScheduleRecord(
+  bookingId: string,
+  input: CreateInstallmentScheduleInput,
 ) {
-  const installmentAmount = parseFloat((totalAmount / count).toFixed(2))
+  return prisma.$transaction(async (tx) => {
+    // Clear any existing schedule first
+    await tx.installment.deleteMany({ where: { bookingId, status: "UNPAID" } })
 
-  // Handle rounding — last installment absorbs the remainder
-  const remainder = parseFloat(
-    (totalAmount - installmentAmount * (count - 1)).toFixed(2),
-  )
-
-  const records = Array.from({ length: count }, (_, i) => {
-    const dueDate = new Date(startDate)
-    dueDate.setDate(dueDate.getDate() + intervalDays * i)
-
-    return {
-      paymentId,
-      order: i + 1,
-      dueDate,
-      amount: i === count - 1 ? remainder : installmentAmount,
-      status: "UNPAID" as const,
-    }
-  })
-
-  return prisma.installment.createMany({ data: records })
-}
-
-export async function markInstallmentPaidRecord(id: string, note?: string) {
-  return prisma.installment.update({
-    where: { id },
-    data: {
-      status: "PAID",
-      paidAt: new Date(),
-      note: note ?? null,
-    },
+    return tx.installment.createMany({
+      data: input.installments.map((item) => ({
+        bookingId,
+        order:   item.order,
+        dueDate: new Date(item.dueDate),
+        amount:  item.amount,
+        note:    item.note ?? null,
+      })),
+    })
   })
 }

@@ -9,22 +9,17 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        // Primary — brand gradient with pink shadow
+        // ← No bg-* here — gradient applied via style prop below
         default:
-          "bg-gradient-to-br from-primary to-primary-deep text-white shadow-primary-sm hover:opacity-90 hover:shadow-primary-md active:opacity-95",
-        // Outline — pink-tinted border, blush hover
+          "text-white shadow-primary-sm hover:opacity-90 hover:shadow-primary-md active:opacity-95",
         outline:
           "border-border-strong bg-transparent text-primary hover:bg-primary-soft hover:border-primary/40",
-        // Secondary — blush fill
         secondary:
           "bg-primary-soft text-primary hover:bg-primary-soft/80 border-transparent",
-        // Ghost — no border, blush hover
         ghost:
           "text-text-sub hover:bg-primary-soft hover:text-primary border-transparent",
-        // Destructive — red tint
         destructive:
           "bg-red-50 text-red-600 border-red-200 hover:bg-red-100 focus-visible:ring-red-300/40",
-        // Link — underline style
         link: "text-primary underline-offset-4 hover:underline border-transparent",
       },
       size: {
@@ -49,12 +44,22 @@ function Button({
   className,
   variant = "default",
   size = "default",
+  style,
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
     <ButtonPrimitive
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
+      style={
+        variant === "default" || variant === undefined
+          ? {
+            background:
+              "linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)",
+            ...style,
+          }
+          : style
+      }
       {...props}
     />
   )

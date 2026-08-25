@@ -2,7 +2,11 @@
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { logAction } from "@/lib/audit/log"
-import { submitPaymentSchema, paymentFilterSchema } from "@/features/payments/payments.schema"
+import { deletePaymentProof } from "@/lib/storage"
+import {
+  submitPaymentSchema,
+  paymentFilterSchema,
+} from "@/features/payments/payments.schema"
 import {
   createPaymentRecord,
   getAllPayments,
@@ -12,8 +16,8 @@ import { NextResponse } from "next/server"
 
 /**
  * GET /api/payments
- * - ADMIN / COORDINATOR: all payments with optional ?status= / ?bookingId= filters
- * - CLIENT: only their own booking payments (?bookingId= required)
+ * - ADMIN / COORDINATOR: all payments with optional ?status= / ?paymentType= / ?bookingId=
+ * - CLIENT: own booking payments only — ?bookingId= required
  */
 export async function GET(req: Request) {
   let role: string
@@ -27,10 +31,6 @@ export async function GET(req: Request) {
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { searchParams } = new URL(req.url)
-  const filters = paymentFilterSchema.safeParse({
-    status: searchParams.get("status") ?? undefined,
-    bookingId: searchParams.get("bookingId") ?? undefined,
-  })
 
   if (role === "CLIENT") {
     const bookingId = searchParams.get("bookingId")
@@ -44,14 +44,25 @@ export async function GET(req: Request) {
     return NextResponse.json(payments)
   }
 
+  const filters = paymentFilterSchema.safeParse({
+    status:      searchParams.get("status") ?? undefined,
+    paymentType: searchParams.get("paymentType") ?? undefined,
+    bookingId:   searchParams.get("bookingId") ?? undefined,
+  })
+
   const payments = await getAllPayments(filters.success ? filters.data : undefined)
   return NextResponse.json(payments)
 }
 
 /**
  * POST /api/payments
- * Submits a payment proof. CLIENT only.
- * Accepts either a proofImageUrl (after client-side upload) or a referenceNumber.
+ * Submits payment proof. CLIENT only.
+ *
+ * The client-side hook uploads the file directly to Supabase Storage
+ * and sends the resulting proofStoragePath here (not the file itself).
+ *
+ * If a proofStoragePath is provided but the DB write fails, the
+ * uploaded file is cleaned up from storage to avoid orphaned files.
  */
 export async function POST(req: Request) {
   try {
@@ -73,18 +84,28 @@ export async function POST(req: Request) {
     )
   }
 
-  const payment = await createPaymentRecord(parsed.data)
+  let payment
+  try {
+    payment = await createPaymentRecord(parsed.data)
+  } catch (err) {
+    // If DB write fails and we have an orphaned storage upload, clean it up
+    if (parsed.data.proofStoragePath) {
+      await deletePaymentProof(parsed.data.proofStoragePath)
+    }
+    throw err
+  }
 
   await logAction({
     userId: actor.id,
     action: "CREATE",
     module: "PAYMENT",
-    description: `Client "${actor.fullName}" submitted payment proof for booking ${parsed.data.bookingId}`,
+    description: `Client "${actor.fullName}" submitted ${parsed.data.paymentType.toLowerCase()} proof for booking ${parsed.data.bookingId}`,
     metadata: {
-      paymentId: payment.id,
-      bookingId: parsed.data.bookingId,
-      method: parsed.data.method,
-      amount: parsed.data.amount,
+      paymentId:   payment.id,
+      bookingId:   parsed.data.bookingId,
+      paymentType: parsed.data.paymentType,
+      method:      parsed.data.method,
+      amount:      parsed.data.amount,
     },
   })
 

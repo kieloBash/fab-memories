@@ -3,17 +3,14 @@
 
 import { use } from "react"
 import { useRouter } from "next/navigation"
-import { usePayment, PAYMENT_METHOD_LABELS } from "@/features/payments"
+import { usePayment, PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from "@/features/payments"
 import { PaymentStatusBadge } from "@/features/payments/components/payment-status-badge"
 import { PaymentVerificationForm } from "@/features/payments/components/payment-verification-form"
-import { InstallmentScheduleTable } from "@/features/installments/components/installment-schedule-table"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { ArrowLeft, ExternalLink } from "lucide-react"
 
-interface Props {
-  params: Promise<{ paymentId: string }>
-}
+interface Props { params: Promise<{ paymentId: string }> }
 
 export default function AdminPaymentDetailPage({ params }: Props) {
   const { paymentId } = use(params)
@@ -23,10 +20,8 @@ export default function AdminPaymentDetailPage({ params }: Props) {
   if (isLoading) return <p className="p-8 text-muted-foreground">Loading…</p>
   if (isError || !payment) return <p className="p-8 text-destructive">Payment not found.</p>
 
-  const formattedAmount = new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-  }).format(Number(payment.amount))
+  const fmt = (n: string | number) =>
+    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n))
 
   return (
     <div className="container max-w-2xl space-y-6 py-8">
@@ -35,7 +30,12 @@ export default function AdminPaymentDetailPage({ params }: Props) {
       </Button>
 
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">{formattedAmount}</h1>
+        <div>
+          <p className="text-sm text-muted-foreground">
+            {PAYMENT_TYPE_LABELS[payment.paymentType]}
+          </p>
+          <h1 className="text-2xl font-bold">{fmt(payment.amount)}</h1>
+        </div>
         <PaymentStatusBadge status={payment.status} />
       </div>
 
@@ -46,9 +46,7 @@ export default function AdminPaymentDetailPage({ params }: Props) {
         <dt className="text-muted-foreground">Booking</dt>
         <dd>
           <button
-            onClick={() =>
-              router.push(`/staff/admin/bookings/${payment.bookingId}`)
-            }
+            onClick={() => router.push(`/staff/admin/bookings/${payment.bookingId}`)}
             className="flex items-center gap-1 text-primary underline-offset-4 hover:underline"
           >
             View Booking <ExternalLink className="size-3" />
@@ -83,32 +81,29 @@ export default function AdminPaymentDetailPage({ params }: Props) {
 
         {payment.verifiedBy && (
           <>
-            <dt className="text-muted-foreground">Verified By</dt>
+            <dt className="text-muted-foreground">Actioned By</dt>
             <dd>{payment.verifiedBy.fullName}</dd>
           </>
         )}
 
         {payment.verificationNote && (
           <>
-            <dt className="text-muted-foreground">Verification Note</dt>
+            <dt className="text-muted-foreground">Note</dt>
             <dd>{payment.verificationNote}</dd>
           </>
         )}
       </dl>
 
       {payment.status === "SUBMITTED" && (
-        <PaymentVerificationForm
-          paymentId={payment.id}
-          onSuccess={() => router.refresh()}
-        />
+        <>
+          <Separator />
+          <PaymentVerificationForm
+            paymentId={payment.id}
+            paymentType={payment.paymentType}
+            onSuccess={() => router.refresh()}
+          />
+        </>
       )}
-
-      <Separator />
-
-      <div className="space-y-3">
-        <h2 className="text-lg font-semibold">Installment Schedule</h2>
-        <InstallmentScheduleTable paymentId={payment.id} canMarkPaid />
-      </div>
     </div>
   )
 }

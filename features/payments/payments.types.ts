@@ -1,6 +1,6 @@
 // features/payments/payments.types.ts
 
-import type { PaymentMethod, PaymentStatus } from "@/app/generated/prisma/client"
+import type { PaymentMethod, PaymentStatus, PaymentType } from "@/app/generated/prisma/client"
 
 export interface PaymentVerifier {
   id: string
@@ -13,6 +13,7 @@ export interface PaymentBooking {
   eventType: string
   eventDate: string
   venue: string
+  status: string
   client: {
     id: string
     fullName: string
@@ -23,10 +24,12 @@ export interface PaymentBooking {
 export interface Payment {
   id: string
   bookingId: string
+  paymentType: PaymentType
   method: PaymentMethod
   status: PaymentStatus
   amount: string              // Decimal serialized as string
-  proofImageUrl: string | null
+  proofImageUrl: string | null  // signed URL — generated server-side on fetch
+  proofStoragePath: string | null
   referenceNumber: string | null
   verifiedById: string | null
   verifiedAt: string | null

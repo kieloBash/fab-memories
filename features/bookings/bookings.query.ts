@@ -97,8 +97,12 @@ export async function confirmBookingRecord(id: string, confirmedById: string) {
     where: { id },
     data: {
       status: "CONFIRMED",
-      confirmedAt: new Date(),
-      confirmedById,
+      // confirmedAt: new Date(),
+      confirmedBy: {
+        connect: {
+          id: confirmedById
+        }
+      },
     },
     include: WITH_RELATIONS,
   })

@@ -4,20 +4,19 @@
 import api from "@/lib/axios"
 import { installmentRoutes } from "./installments.constants"
 import type { Installment } from "./installments.types"
-import type { MarkInstallmentPaidInput } from "./installments.schema"
+import type { CreateInstallmentScheduleInput } from "./installments.schema"
 
-export async function fetchInstallments(paymentId: string): Promise<Installment[]> {
-  const { data } = await api.get<Installment[]>(installmentRoutes.list(paymentId))
+export async function fetchInstallments(bookingId: string): Promise<Installment[]> {
+  const { data } = await api.get<Installment[]>(installmentRoutes.list(bookingId))
   return data
 }
 
-export async function markInstallmentPaid(
-  paymentId: string,
-  installmentId: string,
-  input: MarkInstallmentPaidInput,
-): Promise<Installment> {
-  const { data } = await api.patch<Installment>(
-    installmentRoutes.detail(paymentId, installmentId),
+export async function createInstallmentSchedule(
+  bookingId: string,
+  input: CreateInstallmentScheduleInput,
+): Promise<{ count: number }> {
+  const { data } = await api.post<{ count: number }>(
+    installmentRoutes.list(bookingId),
     input,
   )
   return data

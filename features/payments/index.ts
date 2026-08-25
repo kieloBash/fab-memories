@@ -5,6 +5,7 @@ export {
   paymentRoutes,
   PAYMENT_STATUS_LABELS,
   PAYMENT_METHOD_LABELS,
+  PAYMENT_TYPE_LABELS,
   INSTALLMENT_STATUS_LABELS,
 } from "./payments.constants"
 
@@ -26,7 +27,12 @@ export type {
   PaymentBooking,
 } from "./payments.types"
 
-export { fetchPayments, fetchPayment, submitPayment, verifyPayment } from "./payments.api"
+export {
+  fetchPayments,
+  fetchPayment,
+  submitPayment,
+  verifyPayment,
+} from "./payments.api"
 
 export {
   usePayments,

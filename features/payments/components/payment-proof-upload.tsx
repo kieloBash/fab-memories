@@ -1,7 +1,7 @@
 // features/payments/components/payment-proof-upload.tsx
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -13,79 +13,97 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { uploadPaymentProof } from "@/lib/storage"
+import { ImageIcon, Loader2, X } from "lucide-react"
+import { validatePaymentProofFile } from "@/lib/storage"
 import { useSubmitPayment } from "../payments.hooks"
 import { PAYMENT_METHOD_LABELS } from "../payments.constants"
-import type { PaymentMethod } from "@/app/generated/prisma/client"
+import type { PaymentMethod, PaymentType } from "@/app/generated/prisma/client"
 
-const METHODS = Object.entries(PAYMENT_METHOD_LABELS) as [PaymentMethod, string][]
+// CHEQUE is only allowed for deposits
+const STAFF_METHODS: PaymentMethod[] = ["GCASH", "MAYA", "BANK_TRANSFER", "CASH"]
+const DEPOSIT_METHODS: PaymentMethod[] = ["GCASH", "MAYA", "BANK_TRANSFER", "CHEQUE", "CASH"]
 
 interface PaymentProofUploadProps {
   bookingId: string
-  totalAmount: number
+  paymentType: PaymentType
+  installmentId?: string   // required when paymentType === INSTALLMENT
+  defaultAmount?: number
   onSuccess?: () => void
 }
 
 export function PaymentProofUpload({
   bookingId,
-  totalAmount,
+  paymentType,
+  installmentId,
+  defaultAmount,
   onSuccess,
 }: PaymentProofUploadProps) {
   const { mutate, isPending } = useSubmitPayment()
 
-  const [method, setMethod] = useState<PaymentMethod>("GCASH")
-  const [amount, setAmount] = useState(totalAmount.toString())
-  const [referenceNumber, setReferenceNumber] = useState("")
-  const [file, setFile] = useState<File | null>(null)
-  const [uploading, setUploading] = useState(false)
+  const availableMethods =
+    paymentType === "DEPOSIT" ? DEPOSIT_METHODS : STAFF_METHODS
 
-  const handleSubmitWithRef = () => {
-    mutate(
-      {
-        bookingId,
-        method,
-        amount: parseFloat(amount),
-        referenceNumber: referenceNumber.trim(),
-      },
-      { onSuccess },
-    )
+  const [method, setMethod]               = useState<PaymentMethod>("GCASH")
+  const [amount, setAmount]               = useState(defaultAmount?.toString() ?? "")
+  const [referenceNumber, setReferenceNumber] = useState("")
+  const [file, setFile]                   = useState<File | null>(null)
+  const [fileError, setFileError]         = useState<string | null>(null)
+  const fileInputRef                      = useRef<HTMLInputElement>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = e.target.files?.[0]
+    if (!selected) return
+    const validation = validatePaymentProofFile(selected)
+    if (!validation.valid) {
+      setFileError(validation.error ?? "Invalid file")
+      setFile(null)
+      return
+    }
+    setFileError(null)
+    setFile(selected)
   }
 
-  const handleSubmitWithFile = async () => {
-    if (!file) return
-    setUploading(true)
-    try {
-      // TODO: Replace with real upload when Supabase is configured
-      const proofImageUrl = await uploadPaymentProof(file, bookingId)
-      mutate(
-        {
-          bookingId,
-          method,
-          amount: parseFloat(amount),
-          proofImageUrl,
-        },
-        { onSuccess },
-      )
-    } finally {
-      setUploading(false)
+  const clearFile = () => {
+    setFile(null)
+    setFileError(null)
+    if (fileInputRef.current) fileInputRef.current.value = ""
+  }
+
+  const handleSubmit = (mode: "reference" | "screenshot") => {
+    const base = {
+      bookingId,
+      paymentType,
+      method,
+      amount: parseFloat(amount),
+      ...(paymentType === "INSTALLMENT" && installmentId ? { installmentId } : {}),
+    }
+
+    if (mode === "reference") {
+      mutate({ input: { ...base, referenceNumber: referenceNumber.trim() } }, { onSuccess })
+    } else {
+      if (!file) return
+      mutate({ input: base, file }, { onSuccess })
     }
   }
 
-  const isLoading = isPending || uploading
+  const isLoading = isPending
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-1.5">
           <Label>Payment Method</Label>
-          <Select value={method} onValueChange={(v) => setMethod(v as PaymentMethod)}>
+          <Select
+            value={method}
+            onValueChange={(v) => setMethod(v as PaymentMethod)}
+          >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {METHODS.map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
+              {availableMethods.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {PAYMENT_METHOD_LABELS[m]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -100,6 +118,7 @@ export function PaymentProofUpload({
             step="0.01"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
           />
         </div>
       </div>
@@ -114,6 +133,7 @@ export function PaymentProofUpload({
           </TabsTrigger>
         </TabsList>
 
+        {/* ── Reference number tab ────────────────────────── */}
         <TabsContent value="reference" className="space-y-3 pt-3">
           <div className="space-y-1.5">
             <Label>Reference / Transaction Number</Label>
@@ -125,32 +145,65 @@ export function PaymentProofUpload({
           </div>
           <Button
             className="w-full"
-            onClick={handleSubmitWithRef}
+            onClick={() => handleSubmit("reference")}
             disabled={isLoading || !referenceNumber.trim() || !amount}
           >
-            {isLoading ? "Submitting…" : "Submit Payment"}
+            {isLoading ? (
+              <><Loader2 className="mr-2 size-4 animate-spin" /> Submitting…</>
+            ) : (
+              "Submit Payment"
+            )}
           </Button>
         </TabsContent>
 
+        {/* ── Screenshot upload tab ───────────────────────── */}
         <TabsContent value="screenshot" className="space-y-3 pt-3">
           <div className="space-y-1.5">
             <Label>Upload Screenshot</Label>
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            />
+
+            {file ? (
+              <div className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="size-4 text-muted-foreground" />
+                  <span className="truncate max-w-[200px]">{file.name}</span>
+                  <span className="text-xs text-muted-foreground">
+                    ({(file.size / 1024).toFixed(0)} KB)
+                  </span>
+                </div>
+                <button
+                  onClick={clearFile}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+            ) : (
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={handleFileChange}
+              />
+            )}
+
+            {fileError && (
+              <p className="text-xs text-destructive">{fileError}</p>
+            )}
             <p className="text-xs text-muted-foreground">
-              {/* TODO: Remove this note once Supabase is wired up */}
-              Note: File upload is not yet active. Please use the reference number tab for now.
+              Accepted: JPEG, PNG, WebP — max 5 MB
             </p>
           </div>
+
           <Button
             className="w-full"
-            onClick={handleSubmitWithFile}
+            onClick={() => handleSubmit("screenshot")}
             disabled={isLoading || !file || !amount}
           >
-            {isLoading ? "Uploading…" : "Upload & Submit"}
+            {isLoading ? (
+              <><Loader2 className="mr-2 size-4 animate-spin" /> Uploading…</>
+            ) : (
+              "Upload & Submit"
+            )}
           </Button>
         </TabsContent>
       </Tabs>

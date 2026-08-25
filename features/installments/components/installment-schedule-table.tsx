@@ -2,114 +2,107 @@
 "use client"
 
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
+  Table, TableBody, TableCell,
+  TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { useInstallments } from "../installments.hooks"
-import { MarkPaidDialog } from "./mark-paid-dialog"
 import { INSTALLMENT_STATUS_LABELS } from "@/features/payments/payments.constants"
 
+const fmt = (n: number) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(n)
+
 interface InstallmentScheduleTableProps {
-  paymentId: string
-  canMarkPaid?: boolean  // true for ADMIN / COORDINATOR
+  bookingId: string
+  /** When true shows a "Submit Payment" button per unpaid row (CLIENT view) */
+  onPayInstallment?: (installmentId: string, amount: number) => void
 }
 
 export function InstallmentScheduleTable({
-  paymentId,
-  canMarkPaid = false,
+  bookingId,
+  onPayInstallment,
 }: InstallmentScheduleTableProps) {
-  const { data: installments, isLoading, isError } = useInstallments(paymentId)
+  const { data, isLoading, isError } = useInstallments(bookingId)
 
   if (isLoading) return <p className="text-sm text-muted-foreground">Loading schedule…</p>
-  if (isError) return <p className="text-sm text-destructive">Failed to load installments.</p>
-  if (!installments?.length)
+  if (isError)   return <p className="text-sm text-destructive">Failed to load installments.</p>
+  if (!data?.installments.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No installment schedule yet. It will be generated once the payment is verified.
+        No installment schedule set yet. The admin will create one after the contract is finalised.
       </p>
     )
+  }
 
-  const totalAmount = installments.reduce((sum, i) => sum + Number(i.amount), 0)
-  const paidAmount = installments
-    .filter((i) => i.status === "PAID")
-    .reduce((sum, i) => sum + Number(i.amount), 0)
-
-  const fmt = (n: number) =>
-    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(n)
+  const { totalAmount, totalPaid, totalOutstanding, installments } = data
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>
-          {installments.filter((i) => i.status === "PAID").length} of{" "}
-          {installments.length} installments paid
-        </span>
-        <span>
-          {fmt(paidAmount)} / {fmt(totalAmount)}
-        </span>
+      {/* Running balance summary */}
+      <div className="grid grid-cols-3 gap-3 rounded-lg border p-3 text-sm">
+        <div>
+          <p className="text-muted-foreground">Total</p>
+          <p className="font-semibold">{fmt(totalAmount)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Paid</p>
+          <p className="font-semibold text-green-600">{fmt(totalPaid)}</p>
+        </div>
+        <div>
+          <p className="text-muted-foreground">Outstanding</p>
+          <p className="font-semibold text-destructive">{fmt(totalOutstanding)}</p>
+        </div>
       </div>
 
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead className="w-12">#</TableHead>
+            <TableHead className="w-10">#</TableHead>
             <TableHead>Due Date</TableHead>
             <TableHead>Amount</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Paid On</TableHead>
-            {canMarkPaid && <TableHead className="text-right">Action</TableHead>}
+            {onPayInstallment && <TableHead className="text-right">Action</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
-          {installments.map((installment) => {
-            const dueDate = new Date(installment.dueDate).toLocaleDateString("en-PH", {
-              year: "numeric",
-              month: "short",
-              day: "numeric",
+          {installments.map((inst) => {
+            const dueDate = new Date(inst.dueDate).toLocaleDateString("en-PH", {
+              year: "numeric", month: "short", day: "numeric",
             })
-            const paidAt = installment.paidAt
-              ? new Date(installment.paidAt).toLocaleDateString("en-PH", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
+            const paidAt = inst.paidAt
+              ? new Date(inst.paidAt).toLocaleDateString("en-PH", {
+                  year: "numeric", month: "short", day: "numeric",
                 })
               : "—"
-
             const isOverdue =
-              installment.status === "UNPAID" &&
-              new Date(installment.dueDate) < new Date()
+              inst.status === "UNPAID" && new Date(inst.dueDate) < new Date()
 
             return (
-              <TableRow key={installment.id}>
-                <TableCell className="font-mono text-sm">{installment.order}</TableCell>
-                <TableCell className={isOverdue ? "text-destructive font-medium" : ""}>
+              <TableRow key={inst.id}>
+                <TableCell className="font-mono text-sm">{inst.order}</TableCell>
+                <TableCell className={isOverdue ? "font-medium text-destructive" : ""}>
                   {dueDate}
-                  {isOverdue && (
-                    <span className="ml-1 text-xs">(Overdue)</span>
-                  )}
+                  {isOverdue && <span className="ml-1 text-xs">(Overdue)</span>}
                 </TableCell>
-                <TableCell>{fmt(Number(installment.amount))}</TableCell>
+                <TableCell>{fmt(Number(inst.amount))}</TableCell>
                 <TableCell>
-                  <Badge
-                    variant={installment.status === "PAID" ? "default" : "outline"}
-                  >
-                    {INSTALLMENT_STATUS_LABELS[installment.status]}
+                  <Badge variant={inst.status === "PAID" ? "default" : "outline"}>
+                    {INSTALLMENT_STATUS_LABELS[inst.status]}
                   </Badge>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{paidAt}</TableCell>
-                {canMarkPaid && (
+                {onPayInstallment && (
                   <TableCell className="text-right">
-                    {installment.status === "UNPAID" && (
-                      <MarkPaidDialog
-                        paymentId={paymentId}
-                        installmentId={installment.id}
-                        order={installment.order}
-                      />
+                    {inst.status === "UNPAID" && (
+                      <button
+                        onClick={() =>
+                          onPayInstallment(inst.id, Number(inst.amount))
+                        }
+                        className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                      >
+                        Submit Payment
+                      </button>
                     )}
                   </TableCell>
                 )}

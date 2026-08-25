@@ -4,36 +4,52 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { getApiErrorMessage } from "@/lib/axios"
-import { installmentKeys } from "./installments.constants"
-import { fetchInstallments, markInstallmentPaid } from "./installments.api"
-import type { MarkInstallmentPaidInput } from "./installments.schema"
+import { installmentKeys, paymentKeys } from "./installments.constants"
+import { createInstallmentSchedule, fetchInstallments } from "./installments.api"
+import type { CreateInstallmentScheduleInput } from "./installments.schema"
+import type { InstallmentSummary } from "./installments.types"
 
-export function useInstallments(paymentId: string) {
+// ── Queries ───────────────────────────────────────────────────
+
+export function useInstallments(bookingId: string) {
   return useQuery({
-    queryKey: installmentKeys.byPayment(paymentId),
-    queryFn: () => fetchInstallments(paymentId),
-    enabled: !!paymentId,
+    queryKey: installmentKeys.byBooking(bookingId),
+    queryFn:  () => fetchInstallments(bookingId),
+    enabled:  !!bookingId,
+    select: (installments): InstallmentSummary => {
+      const totalAmount = installments.reduce(
+        (sum, i) => sum + Number(i.amount),
+        0,
+      )
+      const totalPaid = installments
+        .filter((i) => i.status === "PAID")
+        .reduce((sum, i) => sum + Number(i.amount), 0)
+
+      return {
+        totalAmount,
+        totalPaid,
+        totalOutstanding: totalAmount - totalPaid,
+        installments,
+      }
+    },
   })
 }
 
-export function useMarkInstallmentPaid() {
+// ── Mutations ─────────────────────────────────────────────────
+
+export function useCreateInstallmentSchedule(bookingId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({
-      paymentId,
-      installmentId,
-      input,
-    }: {
-      paymentId: string
-      installmentId: string
-      input: MarkInstallmentPaidInput
-    }) => markInstallmentPaid(paymentId, installmentId, input),
+    mutationFn: (input: CreateInstallmentScheduleInput) =>
+      createInstallmentSchedule(bookingId, input),
     onSuccess: (data) => {
       queryClient.invalidateQueries({
-        queryKey: installmentKeys.byPayment(data.paymentId),
+        queryKey: installmentKeys.byBooking(bookingId),
       })
-      toast.success("Installment marked as paid")
+      toast.success(
+        `Installment schedule created — ${data.count} installment${data.count !== 1 ? "s" : ""} added`,
+      )
     },
     onError: (error) => {
       toast.error(getApiErrorMessage(error))

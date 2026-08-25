@@ -2,9 +2,10 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { CalendarDays, CreditCard, User } from "lucide-react"
-import type { PaymentWithRelations } from "../payments.types"
 import { PAYMENT_METHOD_LABELS } from "../payments.constants"
+import { PaymentWithRelations } from "../payments.types"
 import { PaymentStatusBadge } from "./payment-status-badge"
+
 
 interface PaymentSummaryCardProps {
   payment: PaymentWithRelations
@@ -19,10 +20,10 @@ export function PaymentSummaryCard({ payment, onClick }: PaymentSummaryCardProps
 
   const submittedDate = payment.submittedAt
     ? new Date(payment.submittedAt).toLocaleDateString("en-PH", {
-        year: "numeric",
-        month: "short",
-        day: "numeric",
-      })
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
     : null
 
   return (

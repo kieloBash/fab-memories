@@ -24,7 +24,9 @@ export async function fetchPayment(id: string): Promise<PaymentWithRelations> {
   return data
 }
 
-export async function submitPayment(input: SubmitPaymentInput): Promise<PaymentWithRelations> {
+export async function submitPayment(
+  input: SubmitPaymentInput,
+): Promise<PaymentWithRelations> {
   const { data } = await api.post<PaymentWithRelations>(paymentRoutes.payments, input)
   return data
 }
@@ -33,6 +35,9 @@ export async function verifyPayment(
   id: string,
   input: VerifyPaymentInput,
 ): Promise<PaymentWithRelations> {
-  const { data } = await api.patch<PaymentWithRelations>(paymentRoutes.verify(id), input)
+  const { data } = await api.patch<PaymentWithRelations>(
+    paymentRoutes.verify(id),
+    input,
+  )
   return data
 }

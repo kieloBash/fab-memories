@@ -2,14 +2,16 @@
 
 export const installmentKeys = {
   all: ["installments"] as const,
-  byPayment: (paymentId: string) =>
-    [...installmentKeys.all, "payment", paymentId] as const,
-  detail: (paymentId: string, installmentId: string) =>
-    [...installmentKeys.all, paymentId, installmentId] as const,
+  byBooking: (bookingId: string) =>
+    [...installmentKeys.all, "booking", bookingId] as const,
+  detail: (id: string) => [...installmentKeys.all, id] as const,
 } as const
 
 export const installmentRoutes = {
-  list: (paymentId: string) => `/payments/${paymentId}/installments`,
-  detail: (paymentId: string, installmentId: string) =>
-    `/payments/${paymentId}/installments/${installmentId}`,
+  list:   (bookingId: string) => `/bookings/${bookingId}/installments`,
+  detail: (bookingId: string, installmentId: string) =>
+    `/bookings/${bookingId}/installments/${installmentId}`,
 } as const
+
+// Re-export paymentKeys for use in hooks (avoids circular imports)
+export { paymentKeys } from "@/features/payments/payments.constants"

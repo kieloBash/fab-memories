@@ -13,9 +13,7 @@ export const paymentRoutes = {
   payments: "/payments",
   payment: (id: string) => `/payments/${id}`,
   verify: (id: string) => `/payments/${id}/verify`,
-  installments: (id: string) => `/payments/${id}/installments`,
-  installment: (paymentId: string, installmentId: string) =>
-    `/payments/${paymentId}/installments/${installmentId}`,
+  signedUrl: (id: string) => `/payments/${id}/signed-url`,
 } as const
 
 export const PAYMENT_STATUS_LABELS = {
@@ -27,9 +25,15 @@ export const PAYMENT_STATUS_LABELS = {
 
 export const PAYMENT_METHOD_LABELS = {
   GCASH:         "GCash",
+  MAYA:          "Maya",
   BANK_TRANSFER: "Bank Transfer",
+  CHEQUE:        "Cheque",
   CASH:          "Cash",
-  CREDIT_CARD:   "Credit Card",
+} as const
+
+export const PAYMENT_TYPE_LABELS = {
+  DEPOSIT:     "Reservation Deposit",
+  INSTALLMENT: "Installment Payment",
 } as const
 
 export const INSTALLMENT_STATUS_LABELS = {

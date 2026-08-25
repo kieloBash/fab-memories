@@ -8,9 +8,9 @@ type Params = { params: Promise<{ paymentId: string }> }
 
 /**
  * GET /api/payments/[paymentId]
- * Returns a single payment with relations.
+ * Returns a single payment with signed proof URL.
  * - ADMIN / COORDINATOR: any payment
- * - CLIENT: only payments belonging to their own bookings
+ * - CLIENT: only their own booking's payments
  */
 export async function GET(_req: Request, { params }: Params) {
   let role: string
@@ -30,7 +30,6 @@ export async function GET(_req: Request, { params }: Params) {
     return NextResponse.json({ error: "Payment not found" }, { status: 404 })
   }
 
-  // Clients may only view payments on their own bookings
   if (role === "CLIENT" && payment.booking.client.id !== actor.id) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
