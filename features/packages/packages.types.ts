@@ -8,6 +8,7 @@ export interface Package {
   description: string | null
   eventType: EventType
   price: string          // Decimal serialized as string from Prisma
+  priceProvincial: string
   inclusions: string[]
   isActive: boolean
   createdAt: string

@@ -3,10 +3,12 @@
 
 import api from "@/lib/axios"
 import { bookingRoutes } from "./bookings.constants"
-import type { AvailabilityResult, Booking, BookingWithRelations } from "./bookings.types"
+import type { BookingWithRelations, AvailabilityResult } from "./bookings.types"
 import type {
   BookingFilterInput,
+  CancelRequestInput,
   CreateBookingInput,
+  UpdateBookingInput,
   UpdateBookingStatusInput,
 } from "./bookings.schema"
 
@@ -24,9 +26,23 @@ export async function fetchBooking(id: string): Promise<BookingWithRelations> {
   return data
 }
 
-export async function createBooking(input: CreateBookingInput): Promise<BookingWithRelations> {
+export async function createBooking(
+  input: CreateBookingInput,
+): Promise<BookingWithRelations> {
   const { data } = await api.post<BookingWithRelations>(bookingRoutes.bookings, input)
   return data
+}
+
+export async function updateBooking(
+  id: string,
+  input: UpdateBookingInput,
+): Promise<BookingWithRelations> {
+  const { data } = await api.patch<BookingWithRelations>(bookingRoutes.booking(id), input)
+  return data
+}
+
+export async function deleteBooking(id: string): Promise<void> {
+  await api.delete(bookingRoutes.booking(id))
 }
 
 export async function updateBookingStatus(
@@ -34,6 +50,17 @@ export async function updateBookingStatus(
   input: UpdateBookingStatusInput,
 ): Promise<BookingWithRelations> {
   const { data } = await api.patch<BookingWithRelations>(bookingRoutes.booking(id), input)
+  return data
+}
+
+export async function requestBookingCancellation(
+  id: string,
+  input: CancelRequestInput,
+): Promise<BookingWithRelations> {
+  const { data } = await api.post<BookingWithRelations>(
+    bookingRoutes.cancelRequest(id),
+    input,
+  )
   return data
 }
 

@@ -8,35 +8,44 @@ import { bookingKeys } from "./bookings.constants"
 import {
   checkAvailability,
   createBooking,
+  deleteBooking,
   fetchBooking,
   fetchBookings,
+  requestBookingCancellation,
+  updateBooking,
   updateBookingStatus,
 } from "./bookings.api"
-import type { BookingFilterInput, CreateBookingInput, UpdateBookingStatusInput } from "./bookings.schema"
+import type {
+  BookingFilterInput,
+  CancelRequestInput,
+  CreateBookingInput,
+  UpdateBookingInput,
+  UpdateBookingStatusInput,
+} from "./bookings.schema"
 
 // ── Queries ───────────────────────────────────────────────────
 
 export function useBookings(filters?: BookingFilterInput) {
   return useQuery({
     queryKey: bookingKeys.list(filters ?? {}),
-    queryFn: () => fetchBookings(filters),
+    queryFn:  () => fetchBookings(filters),
   })
 }
 
 export function useBooking(id: string) {
   return useQuery({
     queryKey: bookingKeys.detail(id),
-    queryFn: () => fetchBooking(id),
-    enabled: !!id,
+    queryFn:  () => fetchBooking(id),
+    enabled:  !!id,
   })
 }
 
 export function useAvailability(date: string) {
   return useQuery({
     queryKey: bookingKeys.availability(date),
-    queryFn: () => checkAvailability(date),
-    enabled: !!date,
-    staleTime: 30_000, // recheck availability every 30s max
+    queryFn:  () => checkAvailability(date),
+    enabled:  !!date,
+    staleTime: 30_000,
   })
 }
 
@@ -51,9 +60,35 @@ export function useCreateBooking() {
       queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
       toast.success("Booking request submitted successfully")
     },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error))
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  })
+}
+
+export function useUpdateBooking() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: UpdateBookingInput }) =>
+      updateBooking(id, input),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) })
+      toast.success("Booking updated successfully")
     },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  })
+}
+
+export function useDeleteBooking() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (id: string) => deleteBooking(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
+      toast.success("Booking request withdrawn")
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
   })
 }
 
@@ -66,15 +101,27 @@ export function useUpdateBookingStatus() {
     onSuccess: (data, { id }) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
       queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) })
-
-      const message =
+      toast.success(
         data.status === "CONFIRMED"
           ? "Booking confirmed successfully"
-          : "Booking has been cancelled"
-      toast.success(message)
+          : "Booking has been cancelled",
+      )
     },
-    onError: (error) => {
-      toast.error(getApiErrorMessage(error))
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  })
+}
+
+export function useRequestCancellation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: CancelRequestInput }) =>
+      requestBookingCancellation(id, input),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) })
+      toast.success("Cancellation request submitted — staff will review shortly")
     },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
   })
 }

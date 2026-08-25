@@ -1,0 +1,1 @@
+1. update the display of prices for the provincial price if provincial, thinking of updating the db

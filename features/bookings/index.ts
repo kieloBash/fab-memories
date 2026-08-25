@@ -40,6 +40,7 @@ export {
   useAvailability,
   useCreateBooking,
   useUpdateBookingStatus,
+  useUpdateBooking,
 } from "./bookings.hooks"
 
 // Server-only — import directly in route handlers

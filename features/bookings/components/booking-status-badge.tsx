@@ -8,16 +8,13 @@ const STATUS_VARIANT: Record<
   BookingStatus,
   "default" | "secondary" | "destructive" | "outline" | "success" | "warning" | "muted"
 > = {
-  PENDING:   "warning",    // amber — awaiting action
-  CONFIRMED: "success",    // green — all good
-  CANCELLED: "destructive", // red — cancelled
+  PENDING:                 "warning",
+  CONFIRMED:               "success",
+  CANCELLED:               "destructive",
+  CANCELLATION_REQUESTED:  "outline",
 }
 
-interface BookingStatusBadgeProps {
-  status: BookingStatus
-}
-
-export function BookingStatusBadge({ status }: BookingStatusBadgeProps) {
+export function BookingStatusBadge({ status }: { status: BookingStatus }) {
   return (
     <Badge variant={STATUS_VARIANT[status]}>
       {BOOKING_STATUS_LABELS[status]}

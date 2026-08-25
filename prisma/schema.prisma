@@ -1,6 +1,8 @@
 // prisma/schema.prisma
-// CHANGED: Added installmentId String? to Payment model so the specific
-// installment a payment covers is stored at submission time, not guessed at verify time.
+// Changes in this file (marked NEW):
+//   Booking  → venueLatitude, venueLongitude, venueFormattedAddress, packageCustomizations,
+//               cancellationRequestReason, cancellationRequestedAt
+//   Package  → priceProvincial (FR-18 location-based pricing)
 
 generator client {
   provider = "prisma-client"
@@ -55,6 +57,7 @@ enum BookingStatus {
   PENDING
   CONFIRMED
   CANCELLED
+  CANCELLATION_REQUESTED // NEW: client requested cancellation of confirmed booking
 }
 
 enum EventType {
@@ -130,15 +133,16 @@ model AuditLog {
 }
 
 model Package {
-  id          String    @id @default(cuid())
-  name        String
-  description String?
-  eventType   EventType
-  price       Decimal   @db.Decimal(10, 2)
-  inclusions  String[]
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id              String    @id @default(cuid())
+  name            String
+  description     String?
+  eventType       EventType
+  price           Decimal   @db.Decimal(10, 2)
+  priceProvincial Decimal?  @db.Decimal(10, 2) // NEW: FR-18 location-based pricing
+  inclusions      String[]
+  isActive        Boolean   @default(true)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   bookings Booking[]
 
@@ -147,22 +151,36 @@ model Package {
 }
 
 model Booking {
-  id                  String        @id @default(cuid())
-  clientId            String
-  client              User          @relation(fields: [clientId], references: [id])
-  packageId           String
-  package             Package       @relation(fields: [packageId], references: [id])
-  eventType           EventType
-  eventDate           DateTime      @db.Date
-  eventTime           DateTime?     @db.Time
-  venue               String
-  guestCount          Int
-  status              BookingStatus @default(PENDING)
-  notes               String?
+  id                 String        @id @default(cuid())
+  clientId           String
+  client             User          @relation(fields: [clientId], references: [id])
+  packageId          String
+  package            Package       @relation(fields: [packageId], references: [id])
+  eventType          EventType
+  eventDate          DateTime      @db.Date
+  eventTime          DateTime?     @db.Time
+  venue              String
+
+  // NEW: FR venue map pin (Google Places)
+  venueLatitude         Float?
+  venueLongitude        Float?
+  venueFormattedAddress String?   // Google Places formatted address (canonical)
+
+  guestCount         Int
+  status             BookingStatus @default(PENDING)
+  notes              String?
+
+  // NEW: FR-19 package customizations
+  packageCustomizations String[]  @default([])
+
+  // NEW: client-requested cancellation (for CONFIRMED bookings)
+  cancellationRequestReason  String?
+  cancellationRequestedAt    DateTime?
+
   depositVerifiedAt   DateTime?
   depositVerifiedById String?
   confirmedBy         User?         @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
-  cancellationReason  String?
+  cancellationReason  String?       // set by staff when actioning the cancellation
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
@@ -186,13 +204,8 @@ model Payment {
   proofImageUrl    String?
   proofStoragePath String?
   referenceNumber  String?
-
-  // ── NEW: explicitly stores which installment this payment covers ──
-  // Set at submission time so verify route never has to guess.
-  // Null for DEPOSIT payments.
   installmentId    String?
   installment      Installment?  @relation("InstallmentPayment", fields: [installmentId], references: [id])
-
   verifiedById     String?
   verifiedBy       User?         @relation("PaymentVerifiedBy", fields: [verifiedById], references: [id])
   verifiedAt       DateTime?
@@ -220,8 +233,7 @@ model Installment {
   createdAt DateTime          @default(now())
   updatedAt DateTime          @updatedAt
 
-  // Back-ref: payments that cover this installment
-  payments  Payment[]         @relation("InstallmentPayment")
+  payments Payment[] @relation("InstallmentPayment")
 
   @@index([bookingId])
   @@index([status])
