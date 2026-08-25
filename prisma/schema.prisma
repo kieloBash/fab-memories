@@ -1,3 +1,5 @@
+// prisma/schema.prisma
+
 generator client {
   provider = "prisma-client"
   output   = "../app/generated/prisma"
@@ -7,30 +9,16 @@ datasource db {
   provider = "postgresql"
 }
 
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
 enum Role {
   CLIENT
   ADMIN
   COORDINATOR
   VENDOR
 }
-
-model User {
-  id        String   @id @default(cuid())
-  clerkId   String   @unique
-  role      Role
-  email     String?  @unique
-  username  String?  @unique
-  fullName  String
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  auditLogs AuditLog[]
-
-  @@index([role])
-}
-
-// ---- Audit Trail (stubbed now, wired into feature routes later) ----
 
 enum AuditAction {
   LOGIN
@@ -61,6 +49,44 @@ enum AuditStatus {
   FAILURE
 }
 
+// ── Module 2 enums ────────────────────────────────────────────
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  CANCELLED
+}
+
+enum EventType {
+  WEDDING
+  DEBUT
+  CORPORATE
+  BIRTHDAY
+  OTHER
+}
+
+// ─────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  role      Role
+  email     String?  @unique
+  username  String?  @unique
+  fullName  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  auditLogs        AuditLog[]
+  bookings         Booking[]        // CLIENT bookings
+  confirmedBy      Booking[]        @relation("BookingConfirmedBy")
+
+  @@index([role])
+}
+
 model AuditLog {
   id          String      @id @default(cuid())
   userId      String?
@@ -75,4 +101,49 @@ model AuditLog {
   @@index([userId])
   @@index([module])
   @@index([createdAt])
+}
+
+// ── Module 2 — Packages & Bookings ───────────────────────────
+
+model Package {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  eventType   EventType
+  price       Decimal   @db.Decimal(10, 2)
+  inclusions  String[]  // list of included services/items
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  bookings Booking[]
+
+  @@index([eventType])
+  @@index([isActive])
+}
+
+model Booking {
+  id              String        @id @default(cuid())
+  clientId        String
+  client          User          @relation(fields: [clientId], references: [id])
+  packageId       String
+  package         Package       @relation(fields: [packageId], references: [id])
+  eventType       EventType
+  eventDate       DateTime      @db.Date
+  eventTime       DateTime?     @db.Time
+  venue           String
+  guestCount      Int
+  status          BookingStatus @default(PENDING)
+  notes           String?
+  confirmedAt     DateTime?
+  confirmedById   String?
+  confirmedBy     User?         @relation("BookingConfirmedBy", fields: [confirmedById], references: [id])
+  cancellationReason String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([eventDate])
+  @@index([packageId])
 }

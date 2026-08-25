@@ -1,50 +1,49 @@
 // prisma/seed.ts
 /**
- * Seeds the database with a full set of test accounts:
- *   - 1 ADMIN
- *   - 1 COORDINATOR
- *   - 1 VENDOR
- *   - 1 CLIENT (self-registered flow simulation)
+ * Seeds the database with test data for Modules 1 & 2:
  *
- * Safe to run repeatedly — finds and deletes existing Clerk users and
- * Prisma rows for each seed account before recreating them, so you
- * always get a clean slate.
+ *   Users (Clerk + Prisma):
+ *     - 1 ADMIN
+ *     - 1 COORDINATOR
+ *     - 1 VENDOR
+ *     - 2 CLIENTs
+ *
+ *   Packages:
+ *     - 2 Wedding, 1 Debut, 1 Corporate, 1 Birthday
+ *
+ *   Bookings (spread across statuses):
+ *     - 2 PENDING
+ *     - 2 CONFIRMED
+ *     - 1 CANCELLED
+ *
+ * Safe to re-run — deletes existing Clerk users and all Prisma rows
+ * before recreating from scratch.
  *
  * Usage:
  *   npx prisma db seed
  *
- * Required env vars (.env.local):
+ * Required env vars:
  *   CLERK_SECRET_KEY
  *   DATABASE_URL
- *
- * Optional env vars (fall back to defaults below):
- *   SEED_ADMIN_USERNAME      (default: "admin")
- *   SEED_ADMIN_PASSWORD      (default: "FabMemories123!")
- *   SEED_ADMIN_FULLNAME      (default: "System Administrator")
- *   SEED_ADMIN_EMAIL         (default: "admin.fabmemories@example.com")
- *
- * IMPORTANT: never commit real passwords to source control.
- *            Change all seeded passwords immediately after first login.
  */
 
-import { PrismaClient, Role } from "@/app/generated/prisma/client"
+import {
+  PrismaClient,
+  Role,
+  EventType,
+  BookingStatus,
+} from "@/app/generated/prisma/client"
 import { createClerkClient } from "@clerk/backend"
 import { PrismaPg } from "@prisma/adapter-pg"
 import "dotenv/config"
 
 // ── Client setup ──────────────────────────────────────────────────────────────
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL!,
-})
-
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
 const prisma = new PrismaClient({ adapter })
+const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! })
 
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY!,
-})
-
-// ── Seed account definitions ──────────────────────────────────────────────────
+// ── Seed definitions ──────────────────────────────────────────────────────────
 
 interface SeedUser {
   username: string
@@ -65,102 +64,92 @@ const SEED_USERS: SeedUser[] = [
   {
     username: "coordinator",
     password: "FabMemories123!",
-    fullName: "Test Coordinator",
+    fullName: "Maria Santos",
     email: "coordinator.fabmemories@example.com",
     role: Role.COORDINATOR,
   },
   {
     username: "vendor",
     password: "FabMemories123!",
-    fullName: "Test Vendor",
+    fullName: "Juan dela Cruz",
     email: "vendor.fabmemories@example.com",
     role: Role.VENDOR,
   },
   {
-    // CLIENT uses email-based sign-up (no username) — we give a username
-    // here only so the seed can identify and clean up the account on re-run.
-    username: "testclient",
+    username: "client_anna",
     password: "FabMemories123!",
-    fullName: "Test Client",
-    email: "client.fabmemories@example.com",
+    fullName: "Anna Reyes",
+    email: "anna.fabmemories@example.com",
+    role: Role.CLIENT,
+  },
+  {
+    username: "client_ben",
+    password: "FabMemories123!",
+    fullName: "Ben Torres",
+    email: "ben.fabmemories@example.com",
     role: Role.CLIENT,
   },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/**
- * Finds and deletes a Clerk user by username or email, then removes the
- * matching Prisma row. Logs each step so the console output is clear on
- * re-runs. Never throws — cleanup failures are warnings, not blockers.
- */
-async function cleanupExistingUser(user: SeedUser): Promise<void> {
-  console.log(`  🔍  Checking for existing "${user.username}" (${user.role})...`)
-
-  // 1. Try to find by username in Prisma first (fast)
-  const prismaUser = await prisma.user.findUnique({
-    where: { username: user.username },
-  })
-
-  if (prismaUser) {
-    // Delete from Clerk using the stored clerkId
+async function cleanupClerkUser(email: string, clerkId?: string): Promise<void> {
+  // Try by known clerkId first (fast path)
+  if (clerkId) {
     try {
-      await clerk.users.deleteUser(prismaUser.clerkId)
-      console.log(`  🗑   Deleted Clerk user  clerkId=${prismaUser.clerkId}`)
+      await clerk.users.deleteUser(clerkId)
+      console.log(`    🗑  Deleted Clerk user  clerkId=${clerkId}`)
+      return
     } catch (err: any) {
-      // 404 means already gone from Clerk — safe to continue
       if (err?.status !== 404) {
-        console.warn(`  ⚠️   Could not delete Clerk user ${prismaUser.clerkId}:`, err?.message)
+        console.warn(`    ⚠️  Could not delete Clerk user ${clerkId}:`, err?.message)
       }
     }
-
-    // Delete from Prisma (cascade clears audit logs with SetNull)
-    await prisma.user.delete({ where: { id: prismaUser.id } })
-    console.log(`  🗑   Deleted Prisma user  id=${prismaUser.id}`)
-    return
   }
 
-  // 2. Prisma row not found — check Clerk by email in case the webhook
-  //    failed to mirror the user on a previous partial run.
+  // Fall back to email lookup (catches orphaned Clerk users from partial runs)
   try {
-    const clerkUsers = await clerk.users.getUserList({
-      emailAddress: [user.email],
-      limit: 1,
-    })
-
-    if (clerkUsers.data.length > 0) {
-      const clerkId = clerkUsers.data[0].id
-      await clerk.users.deleteUser(clerkId)
-      console.log(`  🗑   Deleted orphaned Clerk user  clerkId=${clerkId} (no Prisma row)`)
+    const result = await clerk.users.getUserList({ emailAddress: [email], limit: 1 })
+    if (result.data.length > 0) {
+      await clerk.users.deleteUser(result.data[0].id)
+      console.log(`    🗑  Deleted orphaned Clerk user  email=${email}`)
     }
   } catch (err: any) {
-    console.warn(`  ⚠️   Clerk lookup by email failed for ${user.email}:`, err?.message)
+    console.warn(`    ⚠️  Clerk lookup by email failed for ${email}:`, err?.message)
   }
 }
 
-/**
- * Creates a single user in both Clerk and Prisma.
- * Staff roles (ADMIN, COORDINATOR, VENDOR) use username + placeholder email.
- * CLIENT role uses the real email (mirrors self-registration flow).
- */
-async function createUser(user: SeedUser): Promise<void> {
+async function cleanupUser(user: SeedUser): Promise<void> {
+  console.log(`  🔍  Checking "${user.username}" (${user.role})…`)
+
+  const existing = await prisma.user.findUnique({ where: { username: user.username } })
+
+  if (existing) {
+    await cleanupClerkUser(user.email, existing.clerkId)
+    await prisma.user.delete({ where: { id: existing.id } })
+    console.log(`    🗑  Deleted Prisma user  id=${existing.id}`)
+  } else {
+    // Prisma row missing — still check Clerk in case webhook failed
+    await cleanupClerkUser(user.email)
+  }
+}
+
+async function createUser(user: SeedUser): Promise<string> {
   const isStaff = user.role !== Role.CLIENT
 
-  console.log(`  ➕  Creating ${user.role} "${user.username}"...`)
-
-  // Clerk creation
   const clerkUser = await clerk.users.createUser({
     username: user.username,
     password: user.password,
-    // Staff get a synthetic placeholder — they log in via username only.
-    // Clients get a real email — they log in via email.
-    emailAddress: [isStaff ? `seed.${user.username}.${Date.now()}@example.com` : user.email],
+    emailAddress: [
+      isStaff
+        ? `seed.${user.username}@example.com`
+        : user.email,
+    ],
     publicMetadata: { role: user.role satisfies Role },
     skipPasswordChecks: false,
   })
 
-  // Prisma mirror
-  await prisma.user.create({
+  const dbUser = await prisma.user.create({
     data: {
       clerkId: clerkUser.id,
       username: user.username,
@@ -170,38 +159,301 @@ async function createUser(user: SeedUser): Promise<void> {
     },
   })
 
-  console.log(`  ✅  ${user.role} "${user.username}" ready  clerkId=${clerkUser.id}`)
+  console.log(`  ✅  ${user.role.padEnd(11)} "${user.username}"  clerkId=${clerkUser.id}`)
+  return dbUser.id
+}
+
+// ── Package seed data ─────────────────────────────────────────────────────────
+
+interface SeedPackage {
+  name: string
+  description: string
+  eventType: EventType
+  price: number
+  inclusions: string[]
+}
+
+const SEED_PACKAGES: SeedPackage[] = [
+  {
+    name: "Classic Wedding Package",
+    description: "An elegant, all-inclusive wedding package perfect for intimate ceremonies.",
+    eventType: EventType.WEDDING,
+    price: 85000,
+    inclusions: [
+      "8-hour event coverage",
+      "Bridal car decoration",
+      "Floral centerpieces (10 tables)",
+      "Wedding cake (3 tiers)",
+      "Sound system & emcee",
+      "Photo & video coverage",
+      "Debut coordinator on-site",
+    ],
+  },
+  {
+    name: "Grand Wedding Package",
+    description: "Full-scale wedding production for larger celebrations with premium add-ons.",
+    eventType: EventType.WEDDING,
+    price: 150000,
+    inclusions: [
+      "12-hour event coverage",
+      "Bridal car decoration",
+      "Floral arch & centerpieces (20 tables)",
+      "Premium wedding cake (5 tiers)",
+      "Full band & professional emcee",
+      "Cinematic photo & video coverage",
+      "Drone aerial shots",
+      "Pre-nuptial shoot (1 day)",
+      "Two coordinators on-site",
+    ],
+  },
+  {
+    name: "Elegant Debut Package",
+    description: "A memorable 18th birthday celebration tailored for the debutante.",
+    eventType: EventType.DEBUT,
+    price: 65000,
+    inclusions: [
+      "8-hour event coverage",
+      "18 roses & 18 candles ceremony",
+      "Debut gown styling assistance",
+      "Floral centerpieces (8 tables)",
+      "Debut cake (3 tiers)",
+      "DJ & sound system",
+      "Photo & video coverage",
+      "Coordinator on-site",
+    ],
+  },
+  {
+    name: "Corporate Events Package",
+    description: "Professional event management for product launches, conferences, and galas.",
+    eventType: EventType.CORPORATE,
+    price: 50000,
+    inclusions: [
+      "6-hour event coverage",
+      "Corporate backdrop & branding setup",
+      "LED screen & projector",
+      "Sound system & microphones",
+      "Professional emcee",
+      "Event documentation (photo)",
+      "Coordinator on-site",
+    ],
+  },
+  {
+    name: "Birthday Celebration Package",
+    description: "Fun and festive birthday party setup for all ages.",
+    eventType: EventType.BIRTHDAY,
+    price: 30000,
+    inclusions: [
+      "5-hour event coverage",
+      "Themed balloon decorations",
+      "Birthday cake (2 tiers)",
+      "Photo booth with props",
+      "DJ & sound system",
+      "Coordinator on-site",
+    ],
+  },
+]
+
+async function seedPackages(): Promise<Record<EventType, string>> {
+  console.log("\n📦  Seeding packages…\n")
+
+  // Clear existing packages (cascade clears booking FK on next step)
+  await prisma.package.deleteMany()
+  console.log("  🗑  Cleared existing packages")
+
+  const idMap: Partial<Record<EventType, string>> = {}
+
+  for (const pkg of SEED_PACKAGES) {
+    const created = await prisma.package.create({
+      data: {
+        name: pkg.name,
+        description: pkg.description,
+        eventType: pkg.eventType,
+        price: pkg.price,
+        inclusions: pkg.inclusions,
+      },
+    })
+    console.log(`  ✅  ${pkg.eventType.padEnd(11)} "${pkg.name}"  id=${created.id}`)
+    // Store one representative id per event type for booking seed
+    if (!idMap[pkg.eventType]) idMap[pkg.eventType] = created.id
+  }
+
+  return idMap as Record<EventType, string>
+}
+
+// ── Booking seed ──────────────────────────────────────────────────────────────
+
+function futureDate(daysFromNow: number): Date {
+  const d = new Date()
+  d.setUTCHours(0, 0, 0, 0)
+  d.setDate(d.getDate() + daysFromNow)
+  return d
+}
+
+function pastDate(daysAgo: number): Date {
+  const d = new Date()
+  d.setUTCHours(0, 0, 0, 0)
+  d.setDate(d.getDate() - daysAgo)
+  return d
+}
+
+async function seedBookings(
+  packageIdByType: Record<EventType, string>,
+  userIds: { admin: string; coordinator: string; anna: string; ben: string },
+): Promise<void> {
+  console.log("\n📅  Seeding bookings…\n")
+
+  await prisma.booking.deleteMany()
+  console.log("  🗑  Cleared existing bookings\n")
+
+  const bookings: {
+    label: string
+    data: Parameters<typeof prisma.booking.create>[0]["data"]
+  }[] = [
+      // ── PENDING ───────────────────────────────────────────────
+      {
+        label: "PENDING  | Anna   | Wedding (future +30d)",
+        data: {
+          clientId: userIds.anna,
+          packageId: packageIdByType[EventType.WEDDING],
+          eventType: EventType.WEDDING,
+          eventDate: futureDate(30),
+          venue: "The Ruins, Talisay City, Negros Occidental",
+          guestCount: 120,
+          status: BookingStatus.PENDING,
+          notes: "Please arrange for a string quartet during the reception.",
+        },
+      },
+      {
+        label: "PENDING  | Ben    | Birthday (future +14d)",
+        data: {
+          clientId: userIds.ben,
+          packageId: packageIdByType[EventType.BIRTHDAY],
+          eventType: EventType.BIRTHDAY,
+          eventDate: futureDate(14),
+          venue: "Balay ni Atong, Cebu City",
+          guestCount: 60,
+          status: BookingStatus.PENDING,
+          notes: "Dinosaur theme for the kids.",
+        },
+      },
+
+      // ── CONFIRMED ─────────────────────────────────────────────
+      {
+        label: "CONFIRMED | Anna   | Debut (future +45d)",
+        data: {
+          clientId: userIds.anna,
+          packageId: packageIdByType[EventType.DEBUT],
+          eventType: EventType.DEBUT,
+          eventDate: futureDate(45),
+          venue: "Waterfront Hotel, Lahug, Cebu City",
+          guestCount: 200,
+          status: BookingStatus.CONFIRMED,
+          confirmedAt: new Date(),
+          confirmedById: userIds.coordinator,
+          notes: "Gold and white color motif.",
+        },
+      },
+      {
+        label: "CONFIRMED | Ben    | Corporate (future +60d)",
+        data: {
+          clientId: userIds.ben,
+          packageId: packageIdByType[EventType.CORPORATE],
+          eventType: EventType.CORPORATE,
+          eventDate: futureDate(60),
+          venue: "Radisson Blu, Cebu City",
+          guestCount: 300,
+          status: BookingStatus.CONFIRMED,
+          confirmedAt: new Date(),
+          confirmedById: userIds.admin,
+        },
+      },
+
+      // ── CANCELLED ─────────────────────────────────────────────
+      {
+        label: "CANCELLED | Anna   | Wedding (past -10d)",
+        data: {
+          clientId: userIds.anna,
+          packageId: packageIdByType[EventType.WEDDING],
+          eventType: EventType.WEDDING,
+          eventDate: pastDate(10),
+          venue: "Plantation Bay Resort, Mactan",
+          guestCount: 80,
+          status: BookingStatus.CANCELLED,
+          cancellationReason: "Client requested cancellation due to venue conflict.",
+          notes: "Originally requested garden setup.",
+        },
+      },
+    ]
+
+  for (const { label, data } of bookings) {
+    const created = await prisma.booking.create({ data })
+    console.log(`  ✅  ${label}`)
+    console.log(`       id=${created.id}`)
+  }
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
-  console.log("\n🌱  Starting seed...\n")
+  console.log("\n🌱  Starting seed (Modules 1 & 2)…")
 
-  if (!process.env.CLERK_SECRET_KEY) {
-    throw new Error("CLERK_SECRET_KEY env var is required.")
-  }
-  if (!process.env.DATABASE_URL) {
-    throw new Error("DATABASE_URL env var is required.")
-  }
+  if (!process.env.CLERK_SECRET_KEY) throw new Error("CLERK_SECRET_KEY is required.")
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required.")
+
+  // ── Step 1: Users ──────────────────────────────────────────
+  console.log("\n👤  Seeding users…\n")
+
+  // Cleanup first (order matters — bookings reference users, so clear them first)
+  await prisma.booking.deleteMany()
+  await prisma.auditLog.deleteMany()
 
   for (const user of SEED_USERS) {
-    await cleanupExistingUser(user)
-    await createUser(user)
-    console.log()
+    await cleanupUser(user)
   }
 
-  console.log("✨  Seed complete!\n")
-  console.log("  Account credentials (change after first login):")
-  console.log("  ┌─────────────────┬──────────────┬─────────────────┬──────────────────────────┐")
-  console.log("  │ Role            │ Username     │ Password        │ Login URL                │")
-  console.log("  ├─────────────────┼──────────────┼─────────────────┼──────────────────────────┤")
-  console.log("  │ ADMIN           │ admin        │ FabMemories123! │ /staff-login             │")
-  console.log("  │ COORDINATOR     │ coordinator  │ FabMemories123! │ /staff-login             │")
-  console.log("  │ VENDOR          │ vendor       │ FabMemories123! │ /staff-login             │")
-  console.log("  │ CLIENT          │ testclient   │ FabMemories123! │ /sign-in (email)         │")
-  console.log("  └─────────────────┴──────────────┴─────────────────┴──────────────────────────┘")
-  console.log("  Client email: client.fabmemories@example.com\n")
+  console.log()
+
+  const userDbIds: Record<string, string> = {}
+  for (const user of SEED_USERS) {
+    const id = await createUser(user)
+    userDbIds[user.username] = id
+  }
+
+  // ── Step 2: Packages ───────────────────────────────────────
+  const packageIdByType = await seedPackages()
+
+  // ── Step 3: Bookings ───────────────────────────────────────
+  await seedBookings(packageIdByType, {
+    admin: userDbIds["admin"],
+    coordinator: userDbIds["coordinator"],
+    anna: userDbIds["client_anna"],
+    ben: userDbIds["client_ben"],
+  })
+
+  // ── Summary ────────────────────────────────────────────────
+  console.log("\n✨  Seed complete!\n")
+  console.log("  ┌──────────────────────────────────────────────────────────────────────┐")
+  console.log("  │  Staff accounts (login at /staff-login)                              │")
+  console.log("  ├──────────────────┬─────────────┬─────────────────┬──────────────────┤")
+  console.log("  │ Role             │ Username    │ Password        │ Full Name        │")
+  console.log("  ├──────────────────┼─────────────┼─────────────────┼──────────────────┤")
+  console.log("  │ ADMIN            │ admin       │ FabMemories123! │ System Admin     │")
+  console.log("  │ COORDINATOR      │ coordinator │ FabMemories123! │ Maria Santos     │")
+  console.log("  │ VENDOR           │ vendor      │ FabMemories123! │ Juan dela Cruz   │")
+  console.log("  ├──────────────────┴─────────────┴─────────────────┴──────────────────┤")
+  console.log("  │  Client accounts (login at /sign-in via email)                       │")
+  console.log("  ├──────────────────┬──────────────────────────┬────────────────────────┤")
+  console.log("  │ Full Name        │ Email                    │ Password               │")
+  console.log("  ├──────────────────┼──────────────────────────┼────────────────────────┤")
+  console.log("  │ Anna Reyes       │ anna.fabmemories@example.com    │ FabMemories123!        │")
+  console.log("  │ Ben Torres       │ ben.fabmemories@example.com     │ FabMemories123!        │")
+  console.log("  └──────────────────┴──────────────────────────┴────────────────────────┘")
+  console.log()
+  console.log("  Packages seeded : 5  (Wedding ×2, Debut ×1, Corporate ×1, Birthday ×1)")
+  console.log("  Bookings seeded : 5  (PENDING ×2, CONFIRMED ×2, CANCELLED ×1)")
+  console.log()
+  console.log("  ⚠️  Change all passwords immediately after first login.")
+  console.log("  ⚠️  Never commit seed passwords to source control.\n")
 }
 
 main()
