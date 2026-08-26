@@ -6,10 +6,10 @@ import { prisma } from "@/lib/prisma"
 import type { CreateBookingInput, UpdateBookingInput } from "./bookings.schema"
 
 const WITH_RELATIONS = {
-  client:     { select: { id: true, fullName: true, email: true, username: true } },
-  package:    true,
+  client:      { select: { id: true, fullName: true, email: true, username: true } },
+  package:     true,
   confirmedBy: { select: { id: true, fullName: true, role: true } },
-  payments:   true,
+  payments:    true,
 } as const
 
 // ── Queries ───────────────────────────────────────────────────
@@ -26,7 +26,7 @@ export async function getAllBookings(filters?: {
       eventType: filters?.eventType,
       eventDate: {
         gte: filters?.from ? new Date(filters.from) : undefined,
-        lte: filters?.to  ? new Date(filters.to)   : undefined,
+        lte: filters?.to   ? new Date(filters.to)   : undefined,
       },
     },
     include:  WITH_RELATIONS,
@@ -59,18 +59,47 @@ export async function isDateAvailable(
     where: {
       status:    "CONFIRMED",
       eventDate: { gte: start, lte: end },
-      // Exclude the booking being edited so it doesn't block itself
       id: excludeBookingId ? { not: excludeBookingId } : undefined,
     },
   })
   return count === 0
 }
 
+// ── Price helpers ─────────────────────────────────────────────
+
+/**
+ * Resolves the agreed price for a booking at creation time.
+ *
+ * Rules (in order):
+ *   1. If isProvincial=true AND package.priceProvincial is set → use priceProvincial
+ *   2. Otherwise → use package.price
+ *
+ * This value is locked on the Booking record and never changes,
+ * even if the package price is later updated by admin.
+ */
+async function resolveAgreedPrice(
+  packageId: string,
+  isProvincial: boolean,
+): Promise<number> {
+  const pkg = await prisma.package.findUniqueOrThrow({ where: { id: packageId } })
+
+  if (isProvincial && pkg.priceProvincial !== null) {
+    return Number(pkg.priceProvincial)
+  }
+  return Number(pkg.price)
+}
+
 // ── Mutations ─────────────────────────────────────────────────
 
+/**
+ * Creates a booking with agreedPrice locked at creation time.
+ * The API route resolves agreedPrice before calling this so it is
+ * set once and never recalculated after.
+ */
 export async function createBookingRecord(
   clientId: string,
   input: CreateBookingInput,
+  agreedPrice: number,
 ) {
   return prisma.booking.create({
     data: {
@@ -86,6 +115,8 @@ export async function createBookingRecord(
       guestCount:            input.guestCount,
       notes:                 input.notes,
       packageCustomizations: input.packageCustomizations ?? [],
+      isProvincial:          input.isProvincial ?? false,
+      agreedPrice,
       status:                "PENDING",
     },
     include: WITH_RELATIONS,
@@ -93,10 +124,27 @@ export async function createBookingRecord(
 }
 
 /**
- * Client edits their own PENDING booking.
- * If eventDate changes, the caller must re-check availability first.
+ * Client edits their PENDING booking.
+ * If packageId or isProvincial changed, recalculates agreedPrice.
+ * If neither changed, keeps the existing agreedPrice.
  */
-export async function updateBookingRecord(id: string, input: UpdateBookingInput) {
+export async function updateBookingRecord(
+  id: string,
+  input: UpdateBookingInput,
+  existingPackageId: string,
+  existingIsProvincial: boolean,
+  existingAgreedPrice: number,
+) {
+  const packageChanged    = !!input.packageId && input.packageId !== existingPackageId
+  const provincialChanged = input.isProvincial !== undefined && input.isProvincial !== existingIsProvincial
+
+  let agreedPrice = existingAgreedPrice
+  if (packageChanged || provincialChanged) {
+    const targetPackageId  = input.packageId ?? existingPackageId
+    const targetProvincial = input.isProvincial ?? existingIsProvincial
+    agreedPrice = await resolveAgreedPrice(targetPackageId, targetProvincial)
+  }
+
   return prisma.booking.update({
     where: { id },
     data:  {
@@ -111,30 +159,24 @@ export async function updateBookingRecord(id: string, input: UpdateBookingInput)
       guestCount:            input.guestCount,
       notes:                 input.notes,
       packageCustomizations: input.packageCustomizations ?? [],
+      isProvincial:          input.isProvincial,
+      agreedPrice,
     },
     include: WITH_RELATIONS,
   })
 }
 
-/**
- * Client withdraws their own PENDING booking (no deposit submitted).
- * Hard-deletes the record since no financial commitment exists.
- */
 export async function deleteBookingRecord(id: string) {
   return prisma.booking.delete({ where: { id } })
 }
 
-/**
- * Client requests cancellation of a CONFIRMED booking.
- * Moves status to CANCELLATION_REQUESTED — staff must action it.
- */
 export async function requestCancellationRecord(id: string, reason: string) {
   return prisma.booking.update({
     where: { id },
     data:  {
-      status:                     "CANCELLATION_REQUESTED",
-      cancellationRequestReason:  reason,
-      cancellationRequestedAt:    new Date(),
+      status:                    "CANCELLATION_REQUESTED",
+      cancellationRequestReason: reason,
+      cancellationRequestedAt:   new Date(),
     },
     include: WITH_RELATIONS,
   })
@@ -158,3 +200,6 @@ export async function cancelBookingRecord(id: string, reason: string) {
     include: WITH_RELATIONS,
   })
 }
+
+// Re-export for other consumers
+export { resolveAgreedPrice }

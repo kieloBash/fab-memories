@@ -1,8 +1,10 @@
 // prisma/schema.prisma
-// Changes in this file (marked NEW):
-//   Booking  → venueLatitude, venueLongitude, venueFormattedAddress, packageCustomizations,
-//               cancellationRequestReason, cancellationRequestedAt
-//   Package  → priceProvincial (FR-18 location-based pricing)
+// CHANGE: added agreedPrice Decimal to Booking model.
+// This stores the price the client agreed to at booking time
+// (provincial rate if applicable, otherwise standard rate).
+// All price displays and installment calculations use this field
+// instead of booking.package.price, which can drift if the package
+// price is later updated by admin.
 
 generator client {
   provider = "prisma-client"
@@ -57,7 +59,7 @@ enum BookingStatus {
   PENDING
   CONFIRMED
   CANCELLED
-  CANCELLATION_REQUESTED // NEW: client requested cancellation of confirmed booking
+  CANCELLATION_REQUESTED
 }
 
 enum EventType {
@@ -138,7 +140,7 @@ model Package {
   description     String?
   eventType       EventType
   price           Decimal   @db.Decimal(10, 2)
-  priceProvincial Decimal?  @db.Decimal(10, 2) // NEW: FR-18 location-based pricing
+  priceProvincial Decimal?  @db.Decimal(10, 2)
   inclusions      String[]
   isActive        Boolean   @default(true)
   createdAt       DateTime  @default(now())
@@ -160,29 +162,29 @@ model Booking {
   eventDate          DateTime      @db.Date
   eventTime          DateTime?     @db.Time
   venue              String
-
-  // NEW: FR venue map pin (Google Places)
   venueLatitude         Float?
   venueLongitude        Float?
-  venueFormattedAddress String?   // Google Places formatted address (canonical)
+  venueFormattedAddress String?
 
   guestCount         Int
   status             BookingStatus @default(PENDING)
   notes              String?
-
-  // NEW: FR-19 package customizations
   packageCustomizations String[]  @default([])
 
-  // NEW: client-requested cancellation (for CONFIRMED bookings)
+  // ── NEW: price locked at booking time ─────────────────────
+  // Set from package.priceProvincial (if isProvincial) or package.price.
+  // Never changes after creation regardless of package price updates.
+  isProvincial       Boolean  @default(false)
+  agreedPrice        Decimal  @db.Decimal(10, 2)
+
   cancellationRequestReason  String?
   cancellationRequestedAt    DateTime?
-
-  depositVerifiedAt   DateTime?
-  depositVerifiedById String?
-  confirmedBy         User?         @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
-  cancellationReason  String?       // set by staff when actioning the cancellation
-  createdAt           DateTime      @default(now())
-  updatedAt           DateTime      @updatedAt
+  depositVerifiedAt          DateTime?
+  depositVerifiedById        String?
+  confirmedBy                User?         @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
+  cancellationReason         String?
+  createdAt                  DateTime      @default(now())
+  updatedAt                  DateTime      @updatedAt
 
   payments     Payment[]
   installments Installment[]

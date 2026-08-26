@@ -32,6 +32,11 @@ export interface Booking {
   status: BookingStatus
   notes: string | null
   packageCustomizations: string[]
+
+  // ── Price locked at booking time ──────────────────────────
+  isProvincial: boolean
+  agreedPrice: string   // Decimal serialized as string from Prisma
+
   cancellationRequestReason: string | null
   cancellationRequestedAt: string | null
   depositVerifiedAt: string | null

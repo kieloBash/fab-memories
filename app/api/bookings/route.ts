@@ -5,6 +5,7 @@ import {
   getAllBookings,
   getBookingsByClientId,
   isDateAvailable,
+  resolveAgreedPrice,
 } from "@/features/bookings/bookings.query"
 import { bookingFilterSchema, createBookingSchema } from "@/features/bookings/bookings.schema"
 import { logAction } from "@/lib/audit/log"
@@ -13,9 +14,8 @@ import { NextResponse } from "next/server"
 
 /**
  * GET /api/bookings
- * - ADMIN / COORDINATOR: returns all bookings with optional filters
- *   (?status=PENDING&eventType=WEDDING&from=YYYY-MM-DD&to=YYYY-MM-DD)
- * - CLIENT: returns only their own bookings (filters ignored)
+ * - ADMIN / COORDINATOR: all bookings with optional filters
+ * - CLIENT: own bookings only
  */
 export async function GET(req: Request) {
   let role: string
@@ -35,10 +35,10 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const filters = bookingFilterSchema.safeParse({
-    status: searchParams.get("status") ?? undefined,
+    status:    searchParams.get("status")    ?? undefined,
     eventType: searchParams.get("eventType") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
+    from:      searchParams.get("from")      ?? undefined,
+    to:        searchParams.get("to")        ?? undefined,
   })
 
   const bookings = await getAllBookings(filters.success ? filters.data : undefined)
@@ -47,7 +47,11 @@ export async function GET(req: Request) {
 
 /**
  * POST /api/bookings
- * Creates a booking request. Client only.
+ * Creates a booking request. CLIENT only.
+ *
+ * Resolves agreedPrice here (server-side) from the package record
+ * so the client cannot manipulate the price.
+ *
  * Enforces one-confirmed-event-per-day availability rule.
  */
 export async function POST(req: Request) {
@@ -70,7 +74,7 @@ export async function POST(req: Request) {
     )
   }
 
-  // Check one-event-per-day rule
+  // Check availability
   const available = await isDateAvailable(parsed.data.eventDate)
   if (!available) {
     return NextResponse.json(
@@ -79,14 +83,30 @@ export async function POST(req: Request) {
     )
   }
 
-  const booking = await createBookingRecord(actor.id, parsed.data)
+  // Resolve agreed price server-side — client cannot manipulate this
+  let agreedPrice: number
+  try {
+    agreedPrice = await resolveAgreedPrice(
+      parsed.data.packageId,
+      parsed.data.isProvincial ?? false,
+    )
+  } catch {
+    return NextResponse.json({ error: "Package not found" }, { status: 404 })
+  }
+
+  const booking = await createBookingRecord(actor.id, parsed.data, agreedPrice)
 
   await logAction({
-    userId: actor.id,
-    action: "CREATE",
-    module: "BOOKING",
+    userId:      actor.id,
+    action:      "CREATE",
+    module:      "BOOKING",
     description: `Client "${actor.fullName}" submitted a booking request for ${parsed.data.eventDate}`,
-    metadata: { bookingId: booking.id, packageId: parsed.data.packageId },
+    metadata:    {
+      bookingId:    booking.id,
+      packageId:    parsed.data.packageId,
+      agreedPrice,
+      isProvincial: parsed.data.isProvincial ?? false,
+    },
   })
 
   return NextResponse.json(booking, { status: 201 })

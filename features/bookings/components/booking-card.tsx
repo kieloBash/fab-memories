@@ -1,35 +1,37 @@
 // features/bookings/components/booking-card.tsx
+"use client"
 
-"use client";
-
-import { cn } from "@/lib/utils";
-import { AlertCircle, CalendarDays, CheckCircle2, Clock, CreditCard, MapPin, Users } from "lucide-react";
-import { EVENT_TYPE_LABELS } from "../bookings.constants";
-import type { BookingWithRelations } from "../bookings.types";
-import { BookingStatusBadge } from "./booking-status-badge";
+import { cn } from "@/lib/utils"
+import {
+  AlertCircle, CalendarDays, CheckCircle2,
+  Clock, CreditCard, MapPin, Users,
+} from "lucide-react"
+import { EVENT_TYPE_LABELS } from "../bookings.constants"
+import type { BookingWithRelations } from "../bookings.types"
+import { BookingStatusBadge } from "./booking-status-badge"
 
 interface BookingCardProps {
-  booking: BookingWithRelations;
-  onClick?: () => void;
+  booking: BookingWithRelations
+  onClick?: () => void
 }
 
 function PaymentProgressPill({ booking }: { booking: BookingWithRelations }) {
-  const payments = (booking as any).payments as Array<{ paymentType: string; status: string, createdAt: string }> | undefined;
-  const installments = (booking as any).installments as Array<{ status: string }> | undefined;
+  const payments = booking.payments
+  const installments = (booking as any).installments as Array<{ status: string }> | undefined
 
-  if (!payments) return null;
+  if (!payments) return null
 
-  const deposit = payments.filter((p) => p.paymentType === "DEPOSIT")
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  const deposit = payments
+    .filter((p) => p.paymentType === "DEPOSIT")
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0]
 
-  // No deposit yet
   if (!deposit) {
     return (
       <div className="flex items-center gap-1.5 text-[11px] font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-pill px-2.5 py-1">
         <Clock size={11} aria-hidden="true" />
         Deposit required
       </div>
-    );
+    )
   }
 
   if (deposit.status === "SUBMITTED") {
@@ -38,7 +40,7 @@ function PaymentProgressPill({ booking }: { booking: BookingWithRelations }) {
         <Clock size={11} aria-hidden="true" />
         Awaiting verification
       </div>
-    );
+    )
   }
 
   if (deposit.status === "FLAGGED") {
@@ -47,12 +49,12 @@ function PaymentProgressPill({ booking }: { booking: BookingWithRelations }) {
         <AlertCircle size={11} aria-hidden="true" />
         Deposit flagged
       </div>
-    );
+    )
   }
 
   if (deposit.status === "VERIFIED" && installments) {
-    const total = installments.length;
-    const paid = installments.filter((i) => i.status === "PAID").length;
+    const total = installments.length
+    const paid = installments.filter((i) => i.status === "PAID").length
 
     if (total === 0) {
       return (
@@ -60,7 +62,7 @@ function PaymentProgressPill({ booking }: { booking: BookingWithRelations }) {
           <CheckCircle2 size={11} aria-hidden="true" />
           Deposit verified
         </div>
-      );
+      )
     }
 
     return (
@@ -68,21 +70,24 @@ function PaymentProgressPill({ booking }: { booking: BookingWithRelations }) {
         <CreditCard size={11} aria-hidden="true" />
         {paid}/{total} installments paid
       </div>
-    );
+    )
   }
 
-  return null;
+  return null
 }
 
 export function BookingCard({ booking, onClick }: BookingCardProps) {
   const eventDate = new Date(booking.eventDate).toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+    year: "numeric", month: "long", day: "numeric",
+  })
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(n);
+    new Intl.NumberFormat("en-PH", {
+      style: "currency", currency: "PHP", minimumFractionDigits: 0,
+    }).format(n)
+
+  // Always use agreedPrice — the price locked at booking time
+  const displayPrice = Number(booking.agreedPrice)
 
   return (
     <div
@@ -90,7 +95,7 @@ export function BookingCard({ booking, onClick }: BookingCardProps) {
       className={cn(
         "group relative flex flex-col gap-4 overflow-hidden rounded-xl border border-border bg-white p-5",
         "transition-all duration-200",
-        onClick && "cursor-pointer hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border-strong"
+        onClick && "cursor-pointer hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border-strong",
       )}
     >
       {/* Blush gradient on hover */}
@@ -100,7 +105,7 @@ export function BookingCard({ booking, onClick }: BookingCardProps) {
         aria-hidden="true"
       />
 
-      {/* Header row */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[15px] font-semibold tracking-tight text-text-main leading-tight truncate">
@@ -127,13 +132,21 @@ export function BookingCard({ booking, onClick }: BookingCardProps) {
         </div>
       </div>
 
-      {/* Footer row */}
+      {/* Footer */}
       <div className="flex items-center justify-between pt-1 border-t border-border">
-        <span className="text-[13px] font-semibold text-text-main">
-          {fmt(Number(booking.package.price))}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-semibold text-text-main">
+            {fmt(displayPrice)}
+          </span>
+          {/* Provincial badge if applicable */}
+          {booking.isProvincial && (
+            <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-pill px-2 py-0.5">
+              Provincial
+            </span>
+          )}
+        </div>
         <PaymentProgressPill booking={booking} />
       </div>
     </div>
-  );
+  )
 }

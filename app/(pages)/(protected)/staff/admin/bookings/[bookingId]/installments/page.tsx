@@ -9,16 +9,16 @@ import { useBookingPayments } from "@/features/payments"
 import { InstallmentScheduleForm } from "@/features/installments/components/installment-schedule-form"
 import { InstallmentScheduleTable } from "@/features/installments/components/installment-schedule-table"
 import { PageHeader } from "@/components/ui/page-header"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ArrowLeft, CalendarDays, AlertCircle, RefreshCcw } from "lucide-react"
+import { SPRING } from "@/lib/framer/framer-utils"
 
 interface Props { params: Promise<{ bookingId: string }> }
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-PH", {
-    style: "currency",
-    currency: "PHP",
-    minimumFractionDigits: 0,
+    style: "currency", currency: "PHP", minimumFractionDigits: 0,
   }).format(n)
 
 export default function AdminInstallmentSchedulePage({ params }: Props) {
@@ -28,9 +28,7 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
   const { data: booking, isLoading: bookingLoading } = useBooking(bookingId)
   const { data: payments } = useBookingPayments(bookingId)
 
-  const isLoading = bookingLoading
-
-  if (isLoading) {
+  if (bookingLoading) {
     return (
       <div className="flex flex-col gap-4">
         {[1, 2].map((i) => (
@@ -52,8 +50,7 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
     return (
       <div className="flex flex-col gap-4 max-w-xl">
         <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 w-fit">
-          <ArrowLeft size={15} aria-hidden="true" />
-          Back
+          <ArrowLeft size={15} aria-hidden="true" /> Back
         </Button>
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5">
           <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" aria-hidden="true" />
@@ -69,10 +66,11 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
     )
   }
 
-  const packagePrice = Number(booking.package.price)
+  // ── Use agreedPrice — the price locked at booking time ────
+  // Never use booking.package.price here; it may have been updated
+  // by admin after the client booked.
+  const agreedPrice = Number(booking.agreedPrice)
 
-  // Derive depositPaid from the most recent VERIFIED DEPOSIT payment.
-  // payments are ordered newest-first (DESC) from the API.
   const verifiedDeposit = payments
     ?.filter((p) => p.paymentType === "DEPOSIT" && p.status === "VERIFIED")
     .at(0)
@@ -80,14 +78,11 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
       className="flex flex-col gap-6 max-w-3xl"
     >
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 w-fit">
-        <ArrowLeft size={15} aria-hidden="true" />
-        Back to booking
+        <ArrowLeft size={15} aria-hidden="true" /> Back to booking
       </Button>
 
       <PageHeader
@@ -96,13 +91,23 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
         icon={CalendarDays}
       />
 
-      {/* Context card */}
+      {/* Context card — shows agreed price prominently */}
       <div className="flex items-center justify-between rounded-xl border border-border bg-white px-5 py-3">
         <div>
-          <p className="text-[11px] text-text-muted">Package price</p>
+          <div className="flex items-center gap-2 mb-0.5">
+            <p className="text-[11px] text-text-muted">Agreed price</p>
+            {booking.isProvincial && (
+              <Badge variant="warning">Provincial rate</Badge>
+            )}
+          </div>
           <p className="text-[18px] font-bold tracking-tighter text-text-main">
-            {fmt(packagePrice)}
+            {fmt(agreedPrice)}
           </p>
+          {booking.isProvincial && (
+            <p className="text-[11px] text-text-muted mt-0.5">
+              Standard rate: {fmt(Number(booking.package.price))}
+            </p>
+          )}
         </div>
         <div className="text-center">
           <p className="text-[11px] text-text-muted">Deposit paid</p>
@@ -125,12 +130,12 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
         </p>
         <InstallmentScheduleTable
           bookingId={bookingId}
-          packagePrice={packagePrice}
+          packagePrice={agreedPrice}   // ← agreedPrice, not package.price
           depositPaid={depositPaid}
         />
       </div>
 
-      {/* Set / replace schedule form */}
+      {/* Set / replace schedule */}
       <div className="rounded-xl border border-border bg-white p-5 space-y-4">
         <div className="flex items-start gap-2 mb-0.5">
           <RefreshCcw size={13} className="text-primary mt-0.5" aria-hidden="true" />
@@ -144,10 +149,9 @@ export default function AdminInstallmentSchedulePage({ params }: Props) {
             </p>
           </div>
         </div>
-
         <InstallmentScheduleForm
           bookingId={bookingId}
-          packagePrice={packagePrice}
+          packagePrice={agreedPrice}   // ← agreedPrice, not package.price
           depositPaid={depositPaid}
           onSuccess={() => router.refresh()}
         />

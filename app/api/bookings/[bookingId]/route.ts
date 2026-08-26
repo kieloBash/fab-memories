@@ -1,11 +1,5 @@
 // app/api/bookings/[bookingId]/route.ts
 
-import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
-import {
-  updateBookingSchema,
-  updateBookingStatusSchema,
-} from "@/features/bookings/bookings.schema"
 import {
   cancelBookingRecord,
   confirmBookingRecord,
@@ -14,6 +8,12 @@ import {
   isDateAvailable,
   updateBookingRecord,
 } from "@/features/bookings/bookings.query"
+import {
+  updateBookingSchema,
+  updateBookingStatusSchema,
+} from "@/features/bookings/bookings.schema"
+import { logAction } from "@/lib/audit/log"
+import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { NextResponse } from "next/server"
 
 type Params = { params: Promise<{ bookingId: string }> }
@@ -25,8 +25,11 @@ type Params = { params: Promise<{ bookingId: string }> }
  */
 export async function GET(_req: Request, { params }: Params) {
   let role: string
-  try { role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"]) }
-  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  try {
+    role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"])
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -34,7 +37,8 @@ export async function GET(_req: Request, { params }: Params) {
   const { bookingId } = await params
   const booking = await getBookingById(bookingId)
 
-  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!booking)
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
   if (role === "CLIENT" && booking.clientId !== actor.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
@@ -43,29 +47,35 @@ export async function GET(_req: Request, { params }: Params) {
 
 /**
  * PATCH /api/bookings/[bookingId]
- * Two modes determined by request body:
- *   1. Client edits a PENDING booking (updateBookingSchema)
- *   2. Staff confirms/cancels a booking (updateBookingStatusSchema)
+ * Two modes:
+ *   CLIENT  → edit their own PENDING booking (updateBookingSchema)
+ *   STAFF   → confirm or cancel (updateBookingStatusSchema)
+ *
+ * When CLIENT edits and packageId or isProvincial changes,
+ * agreedPrice is recalculated server-side via updateBookingRecord.
  */
 export async function PATCH(req: Request, { params }: Params) {
   let role: string
-  try { role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"]) }
-  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  try {
+    role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"])
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { bookingId } = await params
   const existing = await getBookingById(bookingId)
-  if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!existing)
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
 
-  // ── CLIENT: edit their own PENDING booking ────────────────
+  // ── CLIENT: edit PENDING booking ─────────────────────────
   if (role === "CLIENT") {
     if (existing.clientId !== actor.id)
       return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-
     if (existing.status !== "PENDING")
       return NextResponse.json(
         { error: "You can only edit a booking that is still pending" },
@@ -89,12 +99,28 @@ export async function PATCH(req: Request, { params }: Params) {
         )
     }
 
-    const updated = await updateBookingRecord(bookingId, parsed.data)
+    // updateBookingRecord recalculates agreedPrice if package or provincial changed
+    const updated = await updateBookingRecord(
+      bookingId,
+      parsed.data,
+      existing.packageId,
+      existing.isProvincial,
+      Number(existing.agreedPrice),
+    )
+
     await logAction({
-      userId: actor.id, action: "UPDATE", module: "BOOKING",
+      userId: actor.id,
+      action: "UPDATE",
+      module: "BOOKING",
       description: `Client "${actor.fullName}" updated their booking`,
-      metadata: { bookingId, changes: parsed.data },
+      metadata: {
+        bookingId,
+        changes: parsed.data,
+        newAgreedPrice: Number(updated.agreedPrice),
+        prevAgreedPrice: Number(existing.agreedPrice),
+      },
     })
+
     return NextResponse.json(updated)
   }
 
@@ -116,14 +142,18 @@ export async function PATCH(req: Request, { params }: Params) {
   if (parsed.data.status === "CONFIRMED") {
     updated = await confirmBookingRecord(bookingId, actor.id)
     await logAction({
-      userId: actor.id, action: "CONFIRM", module: "BOOKING",
+      userId: actor.id,
+      action: "CONFIRM",
+      module: "BOOKING",
       description: `${actor.role} "${actor.fullName}" confirmed booking`,
-      metadata: { bookingId, clientId: existing.clientId },
+      metadata: { bookingId, clientId: existing.clientId, agreedPrice: Number(existing.agreedPrice) },
     })
   } else {
     updated = await cancelBookingRecord(bookingId, parsed.data.cancellationReason!)
     await logAction({
-      userId: actor.id, action: "DELETE", module: "BOOKING",
+      userId: actor.id,
+      action: "DELETE",
+      module: "BOOKING",
       description: `${actor.role} "${actor.fullName}" cancelled booking`,
       metadata: { bookingId, reason: parsed.data.cancellationReason },
     })
@@ -134,18 +164,22 @@ export async function PATCH(req: Request, { params }: Params) {
 
 /**
  * DELETE /api/bookings/[bookingId]
- * CLIENT only — withdraws their own PENDING booking with no deposit submitted.
+ * CLIENT only — withdraws their own PENDING booking with no submitted payment.
  */
 export async function DELETE(_req: Request, { params }: Params) {
-  try { await requireRole(["CLIENT"]) }
-  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
+  try {
+    await requireRole(["CLIENT"])
+  } catch {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { bookingId } = await params
   const existing = await getBookingById(bookingId)
-  if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!existing)
+    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
   if (existing.clientId !== actor.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   if (existing.status !== "PENDING")
@@ -154,7 +188,6 @@ export async function DELETE(_req: Request, { params }: Params) {
       { status: 409 },
     )
 
-  // Block if a payment has been submitted — contact staff instead
   const hasPayment = existing.payments?.some((p) =>
     ["SUBMITTED", "VERIFIED"].includes(p.status),
   )
@@ -166,7 +199,9 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   await deleteBookingRecord(bookingId)
   await logAction({
-    userId: actor.id, action: "DELETE", module: "BOOKING",
+    userId: actor.id,
+    action: "DELETE",
+    module: "BOOKING",
     description: `Client "${actor.fullName}" withdrew their PENDING booking`,
     metadata: { bookingId },
   })
