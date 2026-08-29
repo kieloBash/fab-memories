@@ -3,19 +3,16 @@
 
 import api from "@/lib/axios"
 import { paymentRoutes } from "./payments.constants"
-import type { Payment, PaymentWithRelations } from "./payments.types"
+import type { PaymentWithRelations } from "./payments.types"
 import type {
   PaymentFilterInput,
+  RecordManualPaymentInput,
   SubmitPaymentInput,
   VerifyPaymentInput,
 } from "./payments.schema"
 
-export async function fetchPayments(
-  filters?: PaymentFilterInput,
-): Promise<PaymentWithRelations[]> {
-  const { data } = await api.get<PaymentWithRelations[]>(paymentRoutes.payments, {
-    params: filters,
-  })
+export async function fetchPayments(filters?: PaymentFilterInput): Promise<PaymentWithRelations[]> {
+  const { data } = await api.get<PaymentWithRelations[]>(paymentRoutes.payments, { params: filters })
   return data
 }
 
@@ -24,20 +21,17 @@ export async function fetchPayment(id: string): Promise<PaymentWithRelations> {
   return data
 }
 
-export async function submitPayment(
-  input: SubmitPaymentInput,
-): Promise<PaymentWithRelations> {
+export async function submitPayment(input: SubmitPaymentInput): Promise<PaymentWithRelations> {
   const { data } = await api.post<PaymentWithRelations>(paymentRoutes.payments, input)
   return data
 }
 
-export async function verifyPayment(
-  id: string,
-  input: VerifyPaymentInput,
-): Promise<PaymentWithRelations> {
-  const { data } = await api.patch<PaymentWithRelations>(
-    paymentRoutes.verify(id),
-    input,
-  )
+export async function verifyPayment(id: string, input: VerifyPaymentInput): Promise<PaymentWithRelations> {
+  const { data } = await api.patch<PaymentWithRelations>(paymentRoutes.verify(id), input)
+  return data
+}
+
+export async function recordManualPayment(input: RecordManualPaymentInput): Promise<PaymentWithRelations> {
+  const { data } = await api.post<PaymentWithRelations>(paymentRoutes.manual, input)
   return data
 }

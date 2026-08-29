@@ -40,6 +40,7 @@ export {
   useBookingPayments,
   useSubmitPayment,
   useVerifyPayment,
+  useRecordManualPayment,
 } from "./payments.hooks"
 
 // Server-only — import directly in route handlers

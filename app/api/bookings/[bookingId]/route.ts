@@ -18,18 +18,10 @@ import { NextResponse } from "next/server"
 
 type Params = { params: Promise<{ bookingId: string }> }
 
-/**
- * GET /api/bookings/[bookingId]
- * - ADMIN / COORDINATOR: any booking
- * - CLIENT: own bookings only
- */
 export async function GET(_req: Request, { params }: Params) {
   let role: string
-  try {
-    role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"])
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  try { role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"]) }
+  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -37,38 +29,24 @@ export async function GET(_req: Request, { params }: Params) {
   const { bookingId } = await params
   const booking = await getBookingById(bookingId)
 
-  if (!booking)
-    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!booking) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
   if (role === "CLIENT" && booking.clientId !== actor.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   return NextResponse.json(booking)
 }
 
-/**
- * PATCH /api/bookings/[bookingId]
- * Two modes:
- *   CLIENT  → edit their own PENDING booking (updateBookingSchema)
- *   STAFF   → confirm or cancel (updateBookingStatusSchema)
- *
- * When CLIENT edits and packageId or isProvincial changes,
- * agreedPrice is recalculated server-side via updateBookingRecord.
- */
 export async function PATCH(req: Request, { params }: Params) {
   let role: string
-  try {
-    role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"])
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  try { role = await requireRole(["ADMIN", "COORDINATOR", "CLIENT"]) }
+  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { bookingId } = await params
   const existing = await getBookingById(bookingId)
-  if (!existing)
-    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
 
   const body = await req.json().catch(() => ({}))
 
@@ -89,7 +67,6 @@ export async function PATCH(req: Request, { params }: Params) {
         { status: 422 },
       )
 
-    // Re-check availability if date changed
     if (parsed.data.eventDate && new Date(parsed.data.eventDate) !== new Date(existing.eventDate)) {
       const available = await isDateAvailable(parsed.data.eventDate, bookingId)
       if (!available)
@@ -99,7 +76,6 @@ export async function PATCH(req: Request, { params }: Params) {
         )
     }
 
-    // updateBookingRecord recalculates agreedPrice if package or provincial changed
     const updated = await updateBookingRecord(
       bookingId,
       parsed.data,
@@ -109,16 +85,9 @@ export async function PATCH(req: Request, { params }: Params) {
     )
 
     await logAction({
-      userId: actor.id,
-      action: "UPDATE",
-      module: "BOOKING",
+      userId: actor.id, action: "UPDATE", module: "BOOKING",
       description: `Client "${actor.fullName}" updated their booking`,
-      metadata: {
-        bookingId,
-        changes: parsed.data,
-        newAgreedPrice: Number(updated.agreedPrice),
-        prevAgreedPrice: Number(existing.agreedPrice),
-      },
+      metadata: { bookingId, changes: parsed.data },
     })
 
     return NextResponse.json(updated)
@@ -142,18 +111,14 @@ export async function PATCH(req: Request, { params }: Params) {
   if (parsed.data.status === "CONFIRMED") {
     updated = await confirmBookingRecord(bookingId, actor.id)
     await logAction({
-      userId: actor.id,
-      action: "CONFIRM",
-      module: "BOOKING",
+      userId: actor.id, action: "CONFIRM", module: "BOOKING",
       description: `${actor.role} "${actor.fullName}" confirmed booking`,
-      metadata: { bookingId, clientId: existing.clientId, agreedPrice: Number(existing.agreedPrice) },
+      metadata: { bookingId, clientId: existing.clientId },
     })
   } else {
     updated = await cancelBookingRecord(bookingId, parsed.data.cancellationReason!)
     await logAction({
-      userId: actor.id,
-      action: "DELETE",
-      module: "BOOKING",
+      userId: actor.id, action: "DELETE", module: "BOOKING",
       description: `${actor.role} "${actor.fullName}" cancelled booking`,
       metadata: { bookingId, reason: parsed.data.cancellationReason },
     })
@@ -162,31 +127,20 @@ export async function PATCH(req: Request, { params }: Params) {
   return NextResponse.json(updated)
 }
 
-/**
- * DELETE /api/bookings/[bookingId]
- * CLIENT only — withdraws their own PENDING booking with no submitted payment.
- */
 export async function DELETE(_req: Request, { params }: Params) {
-  try {
-    await requireRole(["CLIENT"])
-  } catch {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 })
-  }
+  try { await requireRole(["CLIENT"]) }
+  catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const actor = await getCurrentDbUser()
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { bookingId } = await params
   const existing = await getBookingById(bookingId)
-  if (!existing)
-    return NextResponse.json({ error: "Booking not found" }, { status: 404 })
+  if (!existing) return NextResponse.json({ error: "Booking not found" }, { status: 404 })
   if (existing.clientId !== actor.id)
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   if (existing.status !== "PENDING")
-    return NextResponse.json(
-      { error: "You can only withdraw a pending booking" },
-      { status: 409 },
-    )
+    return NextResponse.json({ error: "You can only withdraw a pending booking" }, { status: 409 })
 
   const hasPayment = existing.payments?.some((p) =>
     ["SUBMITTED", "VERIFIED"].includes(p.status),
@@ -199,9 +153,7 @@ export async function DELETE(_req: Request, { params }: Params) {
 
   await deleteBookingRecord(bookingId)
   await logAction({
-    userId: actor.id,
-    action: "DELETE",
-    module: "BOOKING",
+    userId: actor.id, action: "DELETE", module: "BOOKING",
     description: `Client "${actor.fullName}" withdrew their PENDING booking`,
     metadata: { bookingId },
   })

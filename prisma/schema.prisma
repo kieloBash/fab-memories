@@ -1,10 +1,7 @@
 // prisma/schema.prisma
-// CHANGE: added agreedPrice Decimal to Booking model.
-// This stores the price the client agreed to at booking time
-// (provincial rate if applicable, otherwise standard rate).
-// All price displays and installment calculations use this field
-// instead of booking.package.price, which can drift if the package
-// price is later updated by admin.
+// Changes from previous version:
+//   PaymentType enum  → added FULL_BALANCE
+//   Booking model     → added fullPaymentDueDate DateTime?
 
 generator client {
   provider = "prisma-client"
@@ -14,10 +11,6 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
-
-// ─────────────────────────────────────────────────────────────
-// Enums
-// ─────────────────────────────────────────────────────────────
 
 enum Role {
   CLIENT
@@ -79,8 +72,9 @@ enum PaymentMethod {
 }
 
 enum PaymentType {
-  DEPOSIT
-  INSTALLMENT
+  DEPOSIT // reservation deposit — verification triggers booking confirmation
+  INSTALLMENT // per-schedule installment
+  FULL_BALANCE // NEW: single remaining balance payment (FULL plan only)
 }
 
 enum PaymentStatus {
@@ -95,9 +89,10 @@ enum InstallmentStatus {
   PAID
 }
 
-// ─────────────────────────────────────────────────────────────
-// Models
-// ─────────────────────────────────────────────────────────────
+enum PaymentPlan {
+  FULL
+  INSTALLMENT
+}
 
 model User {
   id        String   @id @default(cuid())
@@ -153,38 +148,43 @@ model Package {
 }
 
 model Booking {
-  id                 String        @id @default(cuid())
-  clientId           String
-  client             User          @relation(fields: [clientId], references: [id])
-  packageId          String
-  package            Package       @relation(fields: [packageId], references: [id])
-  eventType          EventType
-  eventDate          DateTime      @db.Date
-  eventTime          DateTime?     @db.Time
-  venue              String
+  id                    String        @id @default(cuid())
+  clientId              String
+  client                User          @relation(fields: [clientId], references: [id])
+  packageId             String
+  package               Package       @relation(fields: [packageId], references: [id])
+  eventType             EventType
+  eventDate             DateTime      @db.Date
+  eventTime             DateTime?     @db.Time
+  venue                 String
   venueLatitude         Float?
   venueLongitude        Float?
   venueFormattedAddress String?
+  guestCount            Int
+  status                BookingStatus @default(PENDING)
+  notes                 String?
+  packageCustomizations String[]      @default([])
 
-  guestCount         Int
-  status             BookingStatus @default(PENDING)
-  notes              String?
-  packageCustomizations String[]  @default([])
+  clientPhone String
 
-  // ── NEW: price locked at booking time ─────────────────────
-  // Set from package.priceProvincial (if isProvincial) or package.price.
-  // Never changes after creation regardless of package price updates.
-  isProvincial       Boolean  @default(false)
-  agreedPrice        Decimal  @db.Decimal(10, 2)
+  isProvincial Boolean @default(false)
+  agreedPrice  Decimal @db.Decimal(10, 2)
 
-  cancellationRequestReason  String?
-  cancellationRequestedAt    DateTime?
-  depositVerifiedAt          DateTime?
-  depositVerifiedById        String?
-  confirmedBy                User?         @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
-  cancellationReason         String?
-  createdAt                  DateTime      @default(now())
-  updatedAt                  DateTime      @updatedAt
+  // Contract terms — set by admin after discussion
+  paymentPlan        PaymentPlan?
+  depositAmount      Decimal?     @db.Decimal(10, 2)
+  depositDueDate     DateTime?
+  fullPaymentDueDate DateTime? // NEW: due date for the remaining balance (FULL plan)
+  staffNote          String?
+
+  cancellationRequestReason String?
+  cancellationRequestedAt   DateTime?
+  depositVerifiedAt         DateTime?
+  depositVerifiedById       String?
+  confirmedBy               User?     @relation("BookingConfirmedBy", fields: [depositVerifiedById], references: [id])
+  cancellationReason        String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
 
   payments     Payment[]
   installments Installment[]

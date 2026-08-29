@@ -12,6 +12,7 @@ import {
   fetchBooking,
   fetchBookings,
   requestBookingCancellation,
+  setContractTerms,
   updateBooking,
   updateBookingStatus,
 } from "./bookings.api"
@@ -19,6 +20,7 @@ import type {
   BookingFilterInput,
   CancelRequestInput,
   CreateBookingInput,
+  SetContractTermsInput,
   UpdateBookingInput,
   UpdateBookingStatusInput,
 } from "./bookings.schema"
@@ -53,7 +55,6 @@ export function useAvailability(date: string) {
 
 export function useCreateBooking() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (input: CreateBookingInput) => createBooking(input),
     onSuccess: () => {
@@ -66,7 +67,6 @@ export function useCreateBooking() {
 
 export function useUpdateBooking() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateBookingInput }) =>
       updateBooking(id, input),
@@ -81,7 +81,6 @@ export function useUpdateBooking() {
 
 export function useDeleteBooking() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: (id: string) => deleteBooking(id),
     onSuccess: () => {
@@ -94,7 +93,6 @@ export function useDeleteBooking() {
 
 export function useUpdateBookingStatus() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: UpdateBookingStatusInput }) =>
       updateBookingStatus(id, input),
@@ -102,10 +100,22 @@ export function useUpdateBookingStatus() {
       queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
       queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) })
       toast.success(
-        data.status === "CONFIRMED"
-          ? "Booking confirmed successfully"
-          : "Booking has been cancelled",
+        data.status === "CONFIRMED" ? "Booking confirmed" : "Booking cancelled",
       )
+    },
+    onError: (error) => toast.error(getApiErrorMessage(error)),
+  })
+}
+
+export function useSetContractTerms() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: SetContractTermsInput }) =>
+      setContractTerms(id, input),
+    onSuccess: (_, { id }) => {
+      queryClient.invalidateQueries({ queryKey: bookingKeys.lists() })
+      queryClient.invalidateQueries({ queryKey: bookingKeys.detail(id) })
+      toast.success("Contract terms saved")
     },
     onError: (error) => toast.error(getApiErrorMessage(error)),
   })
@@ -113,7 +123,6 @@ export function useUpdateBookingStatus() {
 
 export function useRequestCancellation() {
   const queryClient = useQueryClient()
-
   return useMutation({
     mutationFn: ({ id, input }: { id: string; input: CancelRequestInput }) =>
       requestBookingCancellation(id, input),

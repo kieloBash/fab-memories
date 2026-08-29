@@ -1,6 +1,6 @@
 // features/bookings/bookings.types.ts
 
-import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
+import type { BookingStatus, EventType, PaymentPlan } from "@/app/generated/prisma/client"
 import type { Package } from "@/features/packages"
 import type { Payment } from "@/features/payments"
 
@@ -33,9 +33,19 @@ export interface Booking {
   notes: string | null
   packageCustomizations: string[]
 
-  // ── Price locked at booking time ──────────────────────────
+  // Contact
+  clientPhone: string
+
+  // Pricing
   isProvincial: boolean
-  agreedPrice: string   // Decimal serialized as string from Prisma
+  agreedPrice: string          // Decimal as string
+
+  // Contract terms (set by admin)
+  paymentPlan: PaymentPlan | null
+  depositAmount: string | null // Decimal as string
+  depositDueDate: string | null
+  fullPaymentDueDate: string | null
+  staffNote: string | null
 
   cancellationRequestReason: string | null
   cancellationRequestedAt: string | null

@@ -12,6 +12,7 @@ export const bookingKeys = {
 export const bookingRoutes = {
   bookings:      "/bookings",
   booking:       (id: string) => `/bookings/${id}`,
+  contractTerms: (id: string) => `/bookings/${id}/contract-terms`,
   cancelRequest: (id: string) => `/bookings/${id}/cancel-request`,
   availability:  "/bookings/availability",
 } as const
@@ -23,6 +24,11 @@ export const BOOKING_STATUS_LABELS = {
   CANCELLATION_REQUESTED: "Cancellation Requested",
 } as const
 
+export const PAYMENT_PLAN_LABELS = {
+  FULL:        "Full Payment",
+  INSTALLMENT: "Installment Plan",
+} as const
+
 export const EVENT_TYPE_LABELS = {
   WEDDING:   "Wedding",
   DEBUT:     "Debut",
@@ -31,35 +37,13 @@ export const EVENT_TYPE_LABELS = {
   OTHER:     "Other",
 } as const
 
-// Metro Manila area codes / keywords for auto-detecting provincial vs. metro
 export const METRO_MANILA_KEYWORDS = [
-  "manila",
-  "quezon city",
-  "makati",
-  "taguig",
-  "pasig",
-  "mandaluyong",
-  "marikina",
-  "caloocan",
-  "las piñas",
-  "las pinas",
-  "muntinlupa",
-  "parañaque",
-  "paranaque",
-  "pasay",
-  "pateros",
-  "san juan",
-  "valenzuela",
-  "malabon",
-  "navotas",
-  "ncr",
-  "metro manila",
+  "manila", "quezon city", "makati", "taguig", "pasig", "mandaluyong",
+  "marikina", "caloocan", "las piñas", "las pinas", "muntinlupa",
+  "parañaque", "paranaque", "pasay", "pateros", "san juan", "valenzuela",
+  "malabon", "navotas", "ncr", "metro manila",
 ] as const
 
-/**
- * Simple heuristic — returns true if the venue text matches a Metro Manila keyword.
- * Used as a fallback when no map coordinates are available.
- */
 export function detectIsMetroManila(venueText: string): boolean {
   const lower = venueText.toLowerCase()
   return METRO_MANILA_KEYWORDS.some((kw) => lower.includes(kw))
