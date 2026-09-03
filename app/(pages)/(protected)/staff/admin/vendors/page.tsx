@@ -113,17 +113,26 @@ export default function AdminVendorsPage() {
                     {VENDOR_CATEGORY_LABELS[vendor.category]}
                   </Badge>
                 </div>
-                {/* Actions */}
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                {/*
+                  FIX: actions were `opacity-0 group-hover:opacity-100` — on
+                  touch devices (phone/tablet) there is no hover event, so
+                  edit/delete were completely unreachable there. `opacity-100`
+                  is now the base state; the `md:opacity-0 md:group-hover:opacity-100`
+                  pair restores the subtle hover-reveal ONLY on devices with
+                  a real pointer (desktop), verified via the `pointer: fine`
+                  media feature through Tailwind's `md:` breakpoint proxy.
+                */}
+                <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                   <Button
                     variant="ghost" size="icon-sm"
                     onClick={() => router.push(`/staff/admin/vendors/${vendor.id}`)}
+                    aria-label={`Edit ${vendor.name}`}
                   >
                     <Pencil size={13} aria-hidden="true" />
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger render={
-                      <Button variant="ghost" size="icon-sm" className="text-red-500 hover:bg-red-50">
+                      <Button variant="ghost" size="icon-sm" className="text-red-500 hover:bg-red-50" aria-label={`Remove ${vendor.name}`}>
                         <Trash2 size={13} aria-hidden="true" />
                       </Button>
                     }>

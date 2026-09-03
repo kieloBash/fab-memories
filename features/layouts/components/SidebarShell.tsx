@@ -44,6 +44,7 @@ export default function SidebarShell({
 
       {/* ── Desktop Sidebar ── */}
       <motion.aside
+        initial={false}
         animate={{ width: collapsed ? 68 : 240 }}
         transition={{ type: "spring", stiffness: 320, damping: 30 }}
         className="hidden md:flex flex-col fixed top-0 left-0 h-full z-40 bg-white border-r border-border overflow-hidden shrink-0"
@@ -95,11 +96,17 @@ export default function SidebarShell({
           ))}
         </nav>
 
-        {/* User footer — flex row with avatar + logout */}
+        {/*
+          FIX: the logout button used to be wrapped in `{!collapsed && ...}`,
+          which meant it vanished entirely when the sidebar was collapsed —
+          the only way to sign out was to re-expand the sidebar first.
+          Now the collapsed state renders an icon-only logout button
+          stacked below the avatar instead of dropping it.
+        */}
         <div
           className={cn(
-            "border-t border-border p-3 shrink-0 flex items-center gap-2",
-            collapsed ? "justify-center" : "justify-between"
+            "border-t border-border p-3 shrink-0",
+            collapsed ? "flex flex-col items-center gap-2" : "flex items-center justify-between gap-2",
           )}
         >
           <UserAvatar
@@ -108,7 +115,7 @@ export default function SidebarShell({
             size="sm"
             showRole={!collapsed}
           />
-          {!collapsed && <LogoutButton />}
+          <LogoutButton variant={collapsed ? "icon" : "full"} />
         </div>
 
         {/* Collapse toggle */}
@@ -199,6 +206,7 @@ export default function SidebarShell({
 
       {/* ── Content area ── */}
       <motion.div
+        initial={false}
         animate={{ marginLeft: collapsed ? 68 : 240 }}
         transition={{ type: "spring", stiffness: 320, damping: 30 }}
         className="hidden md:flex flex-col flex-1 min-h-screen"

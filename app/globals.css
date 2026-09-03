@@ -134,4 +134,29 @@
     backdrop-filter: saturate(180%) blur(20px);
     -webkit-backdrop-filter: saturate(180%) blur(20px);
   }
+
+  /*
+   * ── Shadow utilities ──────────────────────────────────────
+   * FIX: these three classes were referenced across ~15 components
+   * (button.tsx, package-card.tsx, booking-card.tsx, stat-card.tsx,
+   * event-type tiles, payment plan toggle, payments tab bar, etc.)
+   * but were never defined anywhere. Tailwind v4 silently drops
+   * unrecognized utility classes, so every "selected" and "hover"
+   * state that relied on these was rendering with NO shadow at all —
+   * the single biggest cause of "the active button isn't visible."
+   */
+  .shadow-primary-sm {
+    box-shadow: 0 1px 2px rgba(245, 100, 169, 0.12),
+                0 2px 8px rgba(245, 100, 169, 0.16);
+  }
+
+  .shadow-primary-md {
+    box-shadow: 0 2px 4px rgba(245, 100, 169, 0.14),
+                0 8px 20px rgba(245, 100, 169, 0.20);
+  }
+
+  .shadow-card-hover {
+    box-shadow: 0 4px 12px rgba(26, 10, 18, 0.06),
+                0 12px 28px rgba(245, 100, 169, 0.10);
+  }
 }

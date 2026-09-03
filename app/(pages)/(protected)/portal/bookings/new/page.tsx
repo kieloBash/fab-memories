@@ -16,9 +16,6 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select"
-import {
   ArrowLeft, ArrowRight, CalendarHeart,
   AlertCircle, CheckCircle2, Plus, X, Phone,
 } from "lucide-react"
@@ -37,7 +34,13 @@ const EVENT_TYPES: { value: EventType; label: string; emoji: string }[] = [
   { value: "OTHER",     label: "Other",           emoji: "✨" },
 ]
 
-const STEPS = ["Event details", "Choose a package", "Review"] as const
+// Short labels for the step indicator so it never overflows on
+// narrow phones — the full label is still used as a tooltip/title.
+const STEPS = [
+  { full: "Event details",     short: "Details" },
+  { full: "Choose a package",  short: "Package" },
+  { full: "Review",            short: "Review" },
+] as const
 type Step = 0 | 1 | 2
 
 export default function NewBookingPage() {
@@ -121,13 +124,22 @@ export default function NewBookingPage() {
         icon={CalendarHeart}
       />
 
-      {/* Step indicator */}
+      {/*
+        FIX (step indicator overflow): previously each step button showed
+        its full label ("Choose a package") inside a `flex-1` container.
+        On a narrow phone, 3 labels of that length don't fit and either
+        wrap awkwardly or get clipped. Now: the short label is the default,
+        shown as a `<span>` that itself truncates with an ellipsis as a
+        last resort, and the connector lines use `min-w-[8px]` instead of
+        `flex-1` so they never collapse to zero and disappear.
+      */}
       <div className="flex items-center gap-0">
-        {STEPS.map((label, i) => (
-          <div key={label} className="flex items-center gap-0 flex-1 last:flex-none">
+        {STEPS.map((s, i) => (
+          <div key={s.full} className="flex items-center gap-0 flex-1 last:flex-none min-w-0">
             <button
+              title={s.full}
               className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors",
+                "flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-[11px] sm:text-[12px] font-semibold transition-colors min-w-0",
                 step === i ? "bg-primary-soft text-primary"
                 : i < step  ? "text-emerald-600"
                 : "text-text-muted",
@@ -135,17 +147,17 @@ export default function NewBookingPage() {
               onClick={() => { if (i < step || (i === 1 && step0Valid)) setStep(i as Step) }}
             >
               <span className={cn(
-                "flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold",
+                "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
                 step === i  ? "bg-primary text-white"
                 : i < step ? "bg-emerald-500 text-white"
                 : "bg-border text-text-muted",
               )}>
                 {i < step ? "✓" : i + 1}
               </span>
-              {label}
+              <span className="truncate">{s.short}</span>
             </button>
             {i < STEPS.length - 1 && (
-              <div className={cn("flex-1 h-px mx-1", i < step ? "bg-emerald-300" : "bg-border")} />
+              <div className={cn("flex-1 min-w-[8px] h-px mx-1", i < step ? "bg-emerald-300" : "bg-border")} />
             )}
           </div>
         ))}
@@ -164,21 +176,30 @@ export default function NewBookingPage() {
             <div className="space-y-2">
               <Label>Event type</Label>
               <div className="grid grid-cols-3 gap-2 sm:grid-cols-5">
-                {EVENT_TYPES.map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => { setEventType(t.value); setSelectedPackage(null) }}
-                    className={cn(
-                      "flex flex-col items-center gap-1 rounded-xl border p-3 text-[12px] font-medium transition-all",
-                      eventType === t.value
-                        ? "border-primary bg-primary-soft text-primary shadow-primary-sm"
-                        : "border-border bg-white text-text-sub hover:border-border-strong",
-                    )}
-                  >
-                    <span className="text-[20px]">{t.emoji}</span>
-                    {t.label}
-                  </button>
-                ))}
+                {EVENT_TYPES.map((t) => {
+                  const active = eventType === t.value
+                  return (
+                    <button
+                      key={t.value}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => { setEventType(t.value); setSelectedPackage(null) }}
+                      className={cn(
+                        "flex flex-col items-center gap-1 rounded-xl border-2 p-3 text-[12px] font-medium transition-all",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                        active
+                          // FIX: shadow-primary-sm now actually renders (globals.css fix),
+                          // and the border is 2px + a ring so the selected tile reads
+                          // unmistakably as "chosen" even before the shadow loads.
+                          ? "border-primary bg-primary-soft text-primary shadow-primary-sm ring-2 ring-primary/15"
+                          : "border-border bg-white text-text-sub hover:border-border-strong hover:bg-background-blush",
+                      )}
+                    >
+                      <span className="text-[20px]">{t.emoji}</span>
+                      {t.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
@@ -266,7 +287,6 @@ export default function NewBookingPage() {
                 <Label>Vendor services needed</Label>
                 <p className="text-[11px] text-text-muted mt-0.5">
                   Select services you want us to arrange. Our team will coordinate vendors for you.
-                  <span className="ml-1 italic">Optional — you can always update this later.</span>
                 </p>
               </div>
 
@@ -274,12 +294,6 @@ export default function NewBookingPage() {
                 value={vendorCategories}
                 onChange={setVendorCategories}
               />
-
-              {vendorCategories.length > 0 && (
-                <p className="text-[11px] text-primary font-medium">
-                  {vendorCategories.length} service{vendorCategories.length !== 1 ? "s" : ""} selected
-                </p>
-              )}
             </div>
 
             {/* Notes */}

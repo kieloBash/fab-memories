@@ -113,26 +113,36 @@ export default function AdminBookingsPage() {
               </SelectContent>
             </Select>
 
-            {/* View toggle */}
-            <div className="flex rounded-xl border border-border overflow-hidden">
-              <button
-                onClick={() => setView("grid")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors",
-                  view === "grid" ? "bg-primary text-white" : "bg-white text-text-sub hover:bg-background-blush",
-                )}
-              >
-                <LayoutGrid size={13} aria-hidden="true" /> Grid
-              </button>
-              <button
-                onClick={() => setView("calendar")}
-                className={cn(
-                  "flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors border-l border-border",
-                  view === "calendar" ? "bg-primary text-white" : "bg-white text-text-sub hover:bg-background-blush",
-                )}
-              >
-                <CalendarDays size={13} aria-hidden="true" /> Calendar
-              </button>
+            {/*
+              FIX: toggle switched instantly with a flat color swap and no
+              animation, which read as "did that even register?" on click.
+              Now uses a shared layoutId pill that slides between the two
+              options (same pattern as the sidebar's active-link indicator),
+              plus shadow-primary-sm (now defined) on the active segment.
+            */}
+            <div className="relative flex rounded-xl border border-border overflow-hidden bg-white">
+              {(["grid", "calendar"] as ViewMode[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={cn(
+                    "relative z-10 flex items-center gap-1.5 px-3 py-2 text-[12px] font-medium transition-colors duration-150",
+                    view === v ? "text-white" : "text-text-sub hover:bg-background-blush",
+                  )}
+                >
+                  {view === v && (
+                    <motion.span
+                      layoutId="bookings-view-toggle"
+                      className="absolute inset-0 -z-10 bg-primary shadow-primary-sm"
+                      transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                      aria-hidden="true"
+                    />
+                  )}
+                  {v === "grid"
+                    ? <><LayoutGrid size={13} aria-hidden="true" /> Grid</>
+                    : <><CalendarDays size={13} aria-hidden="true" /> Calendar</>}
+                </button>
+              ))}
             </div>
           </div>
         }

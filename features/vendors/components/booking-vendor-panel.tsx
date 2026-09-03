@@ -27,13 +27,13 @@ import {
   VENDOR_CATEGORY_ICONS,
   VENDOR_CATEGORY_LABELS,
 } from "@/features/vendors"
+import { CopyVendorBriefButton } from "./copy-vendor-brief-button"
 import type { VendorCategory } from "@/features/vendors"
 import type { BookingWithRelations } from "@/features/bookings/bookings.types"
 import { cn } from "@/lib/utils"
-import { CopyVendorBriefButton } from "./copy-vendor-brief-button"
 
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" })
+const fmtDateShort = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric" })
 
 interface BookingVendorPanelProps {
   booking: BookingWithRelations
@@ -57,7 +57,6 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
 
   const requestedCategories = booking.vendorCategories ?? []
 
-  // Filter available vendors by category and search
   const filteredVendors = (allVendors ?? []).filter((v) => {
     const matchCat = v.category === selectedCat
     const matchSearch = !searchQuery || v.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -286,7 +285,7 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
         )}
 
         {assigned?.map((bv) => (
-          <div key={bv.id} className="rounded-xl border border-border bg-background-blush p-3 space-y-2">
+          <div key={bv.id} className="rounded-xl border border-border bg-background-blush p-3 space-y-2.5">
 
             {/* ── Vendor name + category + remove ── */}
             <div className="flex items-start justify-between gap-2">
@@ -315,49 +314,60 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
               </div>
               <button
                 onClick={() => remove(bv.vendorId)}
-                className="shrink-0 text-text-muted hover:text-red-500 transition-colors"
+                className="shrink-0 text-text-muted hover:text-red-500 transition-colors p-1 -m-1"
                 aria-label={`Remove ${bv.vendor.name}`}
               >
                 <Trash2 size={13} />
               </button>
             </div>
 
-            {/* ── Contacted / Confirmed status buttons ── */}
-            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-border">
+            {/*
+              FIX: this row previously used flex + flex-wrap with three pill
+              buttons whose text (e.g. "Contacted Aug 24") could run to 20+
+              characters, causing overlap/truncation on narrow screens.
+              Now a 2-column grid for the status toggles (equal width, text
+              never collides) with the copy-link button as a full-width row
+              beneath — always readable at any viewport.
+            */}
+            <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-border">
               <button
                 onClick={() => handleMarkContacted(bv.vendorId, !!bv.contactedAt)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                  "flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all text-center",
                   bv.contactedAt
                     ? "border-blue-200 bg-blue-50 text-blue-700"
                     : "border-border bg-white text-text-muted hover:border-border-strong",
                 )}
               >
-                <MessageCircle size={11} aria-hidden="true" />
-                {bv.contactedAt ? `Contacted ${fmtDate(bv.contactedAt)}` : "Mark contacted"}
+                <MessageCircle size={11} className="shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {bv.contactedAt ? `Contacted ${fmtDateShort(bv.contactedAt)}` : "Mark contacted"}
+                </span>
               </button>
 
               <button
                 onClick={() => handleMarkConfirmed(bv.vendorId, !!bv.confirmedAt)}
                 className={cn(
-                  "flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-all",
+                  "flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all text-center",
                   bv.confirmedAt
                     ? "border-emerald-200 bg-emerald-50 text-emerald-700"
                     : "border-border bg-white text-text-muted hover:border-border-strong",
                 )}
               >
-                <UserCheck size={11} aria-hidden="true" />
-                {bv.confirmedAt ? `Confirmed ${fmtDate(bv.confirmedAt)}` : "Mark confirmed"}
+                <UserCheck size={11} className="shrink-0" aria-hidden="true" />
+                <span className="truncate">
+                  {bv.confirmedAt ? `Confirmed ${fmtDateShort(bv.confirmedAt)}` : "Mark confirmed"}
+                </span>
               </button>
-
-              {/* ── Copy brief link — share with vendor externally ── */}
-              <CopyVendorBriefButton
-                bookingId={bookingId}
-                bookingVendorId={bv.id}
-                vendorName={bv.vendor.name}
-              />
             </div>
 
+            {/* ── Copy brief link — own row, full width, never competes for space ── */}
+            <CopyVendorBriefButton
+              bookingId={bookingId}
+              bookingVendorId={bv.id}
+              vendorName={bv.vendor.name}
+              className="w-full justify-center"
+            />
           </div>
         ))}
       </div>

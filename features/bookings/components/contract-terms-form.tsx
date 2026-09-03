@@ -116,33 +116,46 @@ export function ContractTermsForm({ booking, onSuccess }: ContractTermsFormProps
           />
         </div>
 
-        {/* Payment plan */}
+        {/*
+          FIX: selected vs unselected payment plan looked nearly
+          identical — both had a light pink-ish background and the
+          only difference was a 1px border color shift, easy to miss.
+          Now the selected tile gets a 2px primary border + ring +
+          shadow (shadow-primary-sm now actually renders) so it reads
+          unambiguously as "chosen," matching the event-type tile
+          pattern used on the new booking form.
+        */}
         <div className="space-y-2">
           <Label>Payment plan</Label>
           <div className="grid grid-cols-2 gap-2">
-            {(["FULL", "INSTALLMENT"] as PaymentPlan[]).map((plan) => (
-              <button
-                key={plan}
-                type="button"
-                onClick={() => setPaymentPlan(plan)}
-                className={cn(
-                  "flex flex-col items-center gap-1.5 rounded-xl border p-3.5 transition-all text-center",
-                  paymentPlan === plan
-                    ? "border-primary bg-primary-soft shadow-primary-sm"
-                    : "border-border bg-white hover:border-border-strong",
-                )}
-              >
-                {plan === "FULL"
-                  ? <Wallet size={18} className={paymentPlan === plan ? "text-primary" : "text-text-muted"} aria-hidden="true" />
-                  : <CreditCard size={18} className={paymentPlan === plan ? "text-primary" : "text-text-muted"} aria-hidden="true" />}
-                <span className={cn("text-[12px] font-semibold", paymentPlan === plan ? "text-primary" : "text-text-sub")}>
-                  {PAYMENT_PLAN_LABELS[plan]}
-                </span>
-                <span className="text-[10px] text-text-muted leading-tight">
-                  {plan === "FULL" ? "One remaining balance payment" : "Split into scheduled installments"}
-                </span>
-              </button>
-            ))}
+            {(["FULL", "INSTALLMENT"] as PaymentPlan[]).map((plan) => {
+              const active = paymentPlan === plan
+              return (
+                <button
+                  key={plan}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setPaymentPlan(plan)}
+                  className={cn(
+                    "flex flex-col items-center gap-1.5 rounded-xl border-2 p-3.5 transition-all text-center",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                    active
+                      ? "border-primary bg-primary-soft shadow-primary-sm ring-2 ring-primary/15"
+                      : "border-border bg-white hover:border-border-strong hover:bg-background-blush",
+                  )}
+                >
+                  {plan === "FULL"
+                    ? <Wallet size={18} className={active ? "text-primary" : "text-text-muted"} aria-hidden="true" />
+                    : <CreditCard size={18} className={active ? "text-primary" : "text-text-muted"} aria-hidden="true" />}
+                  <span className={cn("text-[12px] font-semibold", active ? "text-primary" : "text-text-sub")}>
+                    {PAYMENT_PLAN_LABELS[plan]}
+                  </span>
+                  <span className="text-[10px] text-text-muted leading-tight">
+                    {plan === "FULL" ? "One remaining balance payment" : "Split into scheduled installments"}
+                  </span>
+                </button>
+              )
+            })}
           </div>
         </div>
 

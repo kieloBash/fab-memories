@@ -43,7 +43,8 @@ export default function UserAvatar({
         style={{
           background: "linear-gradient(135deg, var(--primary) 0%, var(--primary-deep) 100%)",
         }}
-        aria-label={`${name} avatar`}
+        role="img"
+        aria-label={role ? `${name}, ${role}` : name}
       >
         {initials}
       </motion.div>
