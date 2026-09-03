@@ -9,6 +9,7 @@ import {
   createPackage,
   fetchPackage,
   fetchPackages,
+  fetchPublicPackages,
   updatePackage,
 } from "./packages.api"
 import type { CreatePackageInput, UpdatePackageInput } from "./packages.schema"
@@ -27,6 +28,18 @@ export function usePackage(id: string) {
     queryKey: packageKeys.detail(id),
     queryFn: () => fetchPackage(id),
     enabled: !!id,
+  })
+}
+
+/**
+ * Public, unauthenticated package listing — safe to call from the
+ * marketing site (no signed-in user required).
+ */
+export function usePublicPackages() {
+  return useQuery({
+    queryKey: packageKeys.publicList(),
+    queryFn: fetchPublicPackages,
+    staleTime: 5 * 60 * 1000, // marketing content — cache 5 min
   })
 }
 

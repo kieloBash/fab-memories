@@ -20,3 +20,14 @@ export interface PackageWithBookingCount extends Package {
     bookings: number
   }
 }
+
+/** Public-safe shape returned by /api/public/packages — no internal fields. */
+export interface PublicPackage {
+  id: string
+  name: string
+  description: string | null
+  eventType: EventType
+  price: string
+  priceProvincial: string
+  inclusions: string[]
+}

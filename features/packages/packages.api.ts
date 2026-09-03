@@ -3,7 +3,7 @@
 
 import api from "@/lib/axios"
 import { packageRoutes } from "./packages.constants"
-import type { Package, PackageWithBookingCount } from "./packages.types"
+import type { Package, PackageWithBookingCount, PublicPackage } from "./packages.types"
 import type { CreatePackageInput, UpdatePackageInput } from "./packages.schema"
 
 export async function fetchPackages(activeOnly?: boolean): Promise<PackageWithBookingCount[]> {
@@ -25,5 +25,15 @@ export async function createPackage(input: CreatePackageInput): Promise<Package>
 
 export async function updatePackage(id: string, input: UpdatePackageInput): Promise<Package> {
   const { data } = await api.patch<Package>(packageRoutes.package(id), input)
+  return data
+}
+
+/**
+ * Fetches the public, unauthenticated package listing — used by the
+ * /packages marketing page. No Clerk session required; hits
+ * /api/public/packages rather than the authenticated /api/packages route.
+ */
+export async function fetchPublicPackages(): Promise<PublicPackage[]> {
+  const { data } = await api.get<PublicPackage[]>(packageRoutes.publicPackages)
   return data
 }

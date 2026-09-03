@@ -139,7 +139,7 @@ export default function HeroSection() {
         animate="visible"
         className="flex items-center gap-3 flex-wrap justify-center"
       >
-        <Link href="/bookings/new">
+        <Link href="/sign-up">
           <motion.button
             whileHover={{ scale: 1.04, boxShadow: "0 8px 32px rgba(245,100,169,0.38)" }}
             whileTap={{ scale: 0.97 }}
@@ -150,14 +150,20 @@ export default function HeroSection() {
           </motion.button>
         </Link>
 
-        <motion.button
-          whileHover={{ scale: 1.03, backgroundColor: "rgba(252,232,243,0.8)" }}
-          whileTap={{ scale: 0.97 }}
-          className="flex items-center gap-2 text-[15px] font-normal text-primary bg-transparent border border-border-strong rounded-pill px-7 py-[14px] cursor-pointer transition-colors"
-        >
-          <Play size={14} className="fill-primary" aria-hidden="true" />
-          See how it works
-        </motion.button>
+        {/* FIX: this button previously had no href/onClick at all — a
+            fully-styled, hover-animated dead button. Now scrolls to
+            the Features section, which is what "See how it works"
+            implies. */}
+        <Link href="#features">
+          <motion.button
+            whileHover={{ scale: 1.03, backgroundColor: "rgba(252,232,243,0.8)" }}
+            whileTap={{ scale: 0.97 }}
+            className="flex items-center gap-2 text-[15px] font-normal text-primary bg-transparent border border-border-strong rounded-pill px-7 py-[14px] cursor-pointer transition-colors"
+          >
+            <Play size={14} className="fill-primary" aria-hidden="true" />
+            See how it works
+          </motion.button>
+        </Link>
       </motion.div>
 
       {/* Coverage areas trust strip */}

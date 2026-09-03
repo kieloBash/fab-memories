@@ -6,11 +6,17 @@ import { motion } from "framer-motion";
 import { Sparkles } from "lucide-react";
 import Link from "next/link";
 
+/*
+ * FIX: "For vendors" and "About" previously pointed to `#vendors` and
+ * `#about` — no section on this page has those ids, so clicking them
+ * did nothing. RolesSection covers all four roles (including vendors)
+ * in one section, so it's been renamed to a single, honest link.
+ * "Packages" is new — links to the public /packages page.
+ */
 const navLinks = [
-  { label: "Features", href: "#features" },
-  { label: "For vendors", href: "#vendors" },
-  { label: "For clients", href: "#clients" },
-  { label: "About", href: "#about" },
+  { label: "Features",     href: "#features" },
+  { label: "Who it's for", href: "#roles" },
+  { label: "Packages",     href: "/packages" },
 ];
 
 export default function Navbar() {
@@ -64,13 +70,26 @@ export default function Navbar() {
           </ul>
         </nav>
 
-        {/* CTA */}
+        {/* CTA + sign in */}
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.4, duration: 0.4, ease: "easeOut" }}
+          className="flex items-center gap-3"
         >
-          <Link href="/staff-login">
+          {/*
+            FIX: previously linked to /staff-login — a prospective CLIENT
+            clicking "Book an event" was sent to the internal staff login
+            page. Now correctly routes to /sign-up (new visitor) with a
+            secondary link to /sign-in for returning clients.
+          */}
+          <Link
+            href="/sign-in"
+            className="hidden sm:block text-[13px] font-medium text-text-sub hover:text-primary transition-colors"
+          >
+            Sign in
+          </Link>
+          <Link href="/sign-up">
             <motion.button
               whileHover={{ scale: 1.04, opacity: 0.9 }}
               whileTap={{ scale: 0.97 }}

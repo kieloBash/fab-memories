@@ -51,7 +51,7 @@ export default function CtaSection() {
         </p>
 
         <div className="flex items-center gap-3 justify-center flex-wrap">
-          <Link href="/bookings/new">
+          <Link href="/sign-up">
             <motion.button
               whileHover={{
                 scale: 1.04,
@@ -65,7 +65,7 @@ export default function CtaSection() {
             </motion.button>
           </Link>
 
-          <Link href="/staff-login">
+          <Link href="/sign-in">
             <motion.button
               whileHover={{
                 scale: 1.03,
