@@ -1,7 +1,10 @@
 // prisma/schema.prisma
-// Changes from previous version:
-//   PaymentType enum  → added FULL_BALANCE
-//   Booking model     → added fullPaymentDueDate DateTime?
+// CHANGES FROM PREVIOUS VERSION:
+//   + enum VendorCategory
+//   + model Vendor
+//   + model BookingVendor
+//   + Booking.vendorCategories  VendorCategory[]   (client-specified needs)
+//   + Booking.vendors           BookingVendor[]     (admin-assigned vendors)
 
 generator client {
   provider = "prisma-client"
@@ -11,6 +14,10 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
 
 enum Role {
   CLIENT
@@ -72,9 +79,9 @@ enum PaymentMethod {
 }
 
 enum PaymentType {
-  DEPOSIT // reservation deposit — verification triggers booking confirmation
-  INSTALLMENT // per-schedule installment
-  FULL_BALANCE // NEW: single remaining balance payment (FULL plan only)
+  DEPOSIT
+  INSTALLMENT
+  FULL_BALANCE
 }
 
 enum PaymentStatus {
@@ -93,6 +100,25 @@ enum PaymentPlan {
   FULL
   INSTALLMENT
 }
+
+// NEW: vendor service categories
+enum VendorCategory {
+  CATERING
+  PHOTOGRAPHY
+  VIDEOGRAPHY
+  FLORALS
+  DECORATION
+  SOUNDS_LIGHTING
+  VENUE
+  HAIR_MAKEUP
+  ENTERTAINMENT
+  TRANSPORTATION
+  OTHER
+}
+
+// ─────────────────────────────────────────────────────────────
+// Models
+// ─────────────────────────────────────────────────────────────
 
 model User {
   id        String   @id @default(cuid())
@@ -147,6 +173,47 @@ model Package {
   @@index([isActive])
 }
 
+// NEW: private vendor directory (admin-managed)
+model Vendor {
+  id             String         @id @default(cuid())
+  name           String
+  category       VendorCategory
+  contactName    String? // name of the person to contact
+  contactPhone   String?
+  contactEmail   String?
+  contactChannel String? // e.g. "Viber", "FB Messenger", "SMS", "Email"
+  coverageAreas  String[]       @default([]) // ["Metro Manila", "Cebu", "Batangas", …]
+  notes          String? // admin's private notes (rates, quality, etc.)
+  isActive       Boolean        @default(true)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  assignments BookingVendor[]
+
+  @@index([category])
+  @@index([isActive])
+}
+
+// NEW: many-to-many join — vendors assigned to a booking
+model BookingVendor {
+  id        String  @id @default(cuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  vendorId  String
+  vendor    Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
+
+  category    VendorCategory // what category this vendor fulfils for this booking
+  notes       String? // admin note: agreed rate, scope, special instructions
+  contactedAt DateTime? // admin marked "I've called this vendor"
+  confirmedAt DateTime? // admin confirmed vendor is available for this date
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@unique([bookingId, vendorId])
+  @@index([bookingId])
+  @@index([vendorId])
+}
+
 model Booking {
   id                    String        @id @default(cuid())
   clientId              String
@@ -167,14 +234,16 @@ model Booking {
 
   clientPhone String
 
+  // NEW: categories the client says they need (set at booking request time)
+  vendorCategories VendorCategory[] @default([])
+
   isProvincial Boolean @default(false)
   agreedPrice  Decimal @db.Decimal(10, 2)
 
-  // Contract terms — set by admin after discussion
   paymentPlan        PaymentPlan?
   depositAmount      Decimal?     @db.Decimal(10, 2)
   depositDueDate     DateTime?
-  fullPaymentDueDate DateTime? // NEW: due date for the remaining balance (FULL plan)
+  fullPaymentDueDate DateTime?
   staffNote          String?
 
   cancellationRequestReason String?
@@ -188,6 +257,7 @@ model Booking {
 
   payments     Payment[]
   installments Installment[]
+  vendors      BookingVendor[] // NEW: assigned vendors
 
   @@index([clientId])
   @@index([status])

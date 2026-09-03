@@ -1,6 +1,6 @@
 // features/bookings/bookings.types.ts
 
-import type { BookingStatus, EventType, PaymentPlan } from "@/app/generated/prisma/client"
+import type { BookingStatus, EventType, PaymentPlan, VendorCategory } from "@/app/generated/prisma/client"
 import type { Package } from "@/features/packages"
 import type { Payment } from "@/features/payments"
 
@@ -32,6 +32,9 @@ export interface Booking {
   status: BookingStatus
   notes: string | null
   packageCustomizations: string[]
+
+  // Vendor categories the client selected at booking time (FR-19)
+  vendorCategories: VendorCategory[]
 
   // Contact
   clientPhone: string

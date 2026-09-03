@@ -25,6 +25,8 @@ const isPublic = createRouteMatcher([
     "/sign-up(.*)",
     "/staff-login(.*)",
     "/api/webhooks(.*)",
+    "/vendor-brief(.*)",
+    "/api/vendor-brief(.*)",
 ])
 
 // ── Middleware ────────────────────────────────────────────────────────────────

@@ -12,6 +12,7 @@ import { ConfirmBookingDialog } from "@/features/bookings/components/confirm-boo
 import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog"
 import { ContractTermsForm } from "@/features/bookings/components/contract-terms-form"
 import { PaymentSummary } from "@/features/bookings/components/payment-summary"
+import { BookingVendorPanel } from "@/features/vendors/components/booking-vendor-panel"
 import { PageHeader } from "@/components/ui/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -68,9 +69,9 @@ export default function AdminBookingDetailPage({ params }: Props) {
     )
   }
 
-  const agreedPrice = Number(booking.agreedPrice)
+  const agreedPrice   = Number(booking.agreedPrice)
   const depositAmount = booking.depositAmount ? Number(booking.depositAmount) : null
-  const termsSet = !!(booking.paymentPlan && booking.depositAmount)
+  const termsSet      = !!(booking.paymentPlan && booking.depositAmount)
   const isCancelRequested = booking.status === "CANCELLATION_REQUESTED"
 
   // Latest verified deposit
@@ -163,10 +164,10 @@ export default function AdminBookingDetailPage({ params }: Props) {
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               {[
-                { icon: User, label: "Client", value: booking.client.fullName },
-                { icon: CalendarDays, label: "Event date", value: fmtDate(booking.eventDate) },
-                { icon: Users, label: "Guests", value: `${booking.guestCount} guests` },
-                { icon: Package, label: "Package", value: booking.package.name },
+                { icon: User,        label: "Client",     value: booking.client.fullName },
+                { icon: CalendarDays,label: "Event date", value: fmtDate(booking.eventDate) },
+                { icon: Users,       label: "Guests",     value: `${booking.guestCount} guests` },
+                { icon: Package,     label: "Package",    value: booking.package.name },
               ].map(({ icon: Icon, label, value }) => (
                 <div key={label} className="flex items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
@@ -291,6 +292,9 @@ export default function AdminBookingDetailPage({ params }: Props) {
             )}
           </div>
 
+          {/* ── Vendor coordination panel (FR-19 / Module 4) ── */}
+          <BookingVendorPanel booking={booking} />
+
           {/* ── Payment summary + transaction history (staff variant) ── */}
           <PaymentSummary
             booking={booking}
@@ -315,7 +319,9 @@ export default function AdminBookingDetailPage({ params }: Props) {
             {!verifiedDeposit && !submittedDeposit ? (
               <div className="flex items-center gap-2 text-[13px] text-text-muted">
                 <Clock size={14} aria-hidden="true" />
-                {termsSet ? `Awaiting client — ${depositAmount ? fmt(depositAmount) : "amount set"}` : "Set contract terms first"}
+                {termsSet
+                  ? `Awaiting client — ${depositAmount ? fmt(depositAmount) : "amount set"}`
+                  : "Set contract terms first"}
               </div>
             ) : (
               <div className="space-y-2">

@@ -8,6 +8,7 @@ import { useCreateBooking, useAvailability } from "@/features/bookings"
 import { VenuePicker, type VenuePickerValue } from "@/features/bookings/components/venue-picker"
 import { PackageCard } from "@/features/packages/components/package-card"
 import { usePackages } from "@/features/packages"
+import { VendorCategoryPicker } from "@/features/vendors/components/vendor-category-picker"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +24,8 @@ import {
 } from "lucide-react"
 import type { EventType } from "@/app/generated/prisma/client"
 import type { Package } from "@/features/packages"
+import type { VendorCategory } from "@/features/vendors"
+import { VENDOR_CATEGORY_ICONS, VENDOR_CATEGORY_LABELS } from "@/features/vendors"
 import { SPRING } from "@/lib/framer/framer-utils"
 import { cn } from "@/lib/utils"
 
@@ -50,6 +53,7 @@ export default function NewBookingPage() {
   const [notes, setNotes]         = useState("")
   const [customizations, setCustomizations] = useState<string[]>([])
   const [newCustomization, setNewCustomization] = useState("")
+  const [vendorCategories, setVendorCategories] = useState<VendorCategory[]>([])
   const [selectedPackage, setSelectedPackage]   = useState<Package | null>(null)
 
   const { data: availability } = useAvailability(eventDate)
@@ -92,6 +96,7 @@ export default function NewBookingPage() {
         clientPhone,
         notes:                 notes.trim() || undefined,
         packageCustomizations: customizations,
+        vendorCategories,
         isProvincial:          venue.isProvincial,
       },
       { onSuccess: () => router.push("/portal/bookings") },
@@ -255,6 +260,28 @@ export default function NewBookingPage() {
               </p>
             </div>
 
+            {/* ── Vendor needs (FR-19) ────────────────────────── */}
+            <div className="space-y-2">
+              <div>
+                <Label>Vendor services needed</Label>
+                <p className="text-[11px] text-text-muted mt-0.5">
+                  Select services you want us to arrange. Our team will coordinate vendors for you.
+                  <span className="ml-1 italic">Optional — you can always update this later.</span>
+                </p>
+              </div>
+
+              <VendorCategoryPicker
+                value={vendorCategories}
+                onChange={setVendorCategories}
+              />
+
+              {vendorCategories.length > 0 && (
+                <p className="text-[11px] text-primary font-medium">
+                  {vendorCategories.length} service{vendorCategories.length !== 1 ? "s" : ""} selected
+                </p>
+              )}
+            </div>
+
             {/* Notes */}
             <div className="space-y-2">
               <Label>Notes <span className="text-text-muted text-[11px]">(optional)</span></Label>
@@ -366,6 +393,24 @@ export default function NewBookingPage() {
                   <span className="text-text-main font-medium text-right">{value}</span>
                 </div>
               ))}
+
+              {/* Vendor services review */}
+              {vendorCategories.length > 0 && (
+                <div className="border-t border-border pt-3 space-y-1.5">
+                  <p className="text-[11px] text-text-muted">Vendor services requested</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {vendorCategories.map((cat) => (
+                      <span
+                        key={cat}
+                        className="flex items-center gap-1 rounded-full border border-primary/20 bg-primary-soft px-2.5 py-1 text-[11px] font-medium text-primary"
+                      >
+                        <span aria-hidden="true">{VENDOR_CATEGORY_ICONS[cat]}</span>
+                        {VENDOR_CATEGORY_LABELS[cat]}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {customizations.length > 0 && (
                 <div className="border-t border-border pt-3">

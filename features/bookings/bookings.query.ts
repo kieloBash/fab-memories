@@ -104,6 +104,7 @@ export async function createBookingRecord(
       clientPhone: input.clientPhone,
       notes: input.notes,
       packageCustomizations: input.packageCustomizations ?? [],
+      vendorCategories: input.vendorCategories ?? [],
       isProvincial: input.isProvincial ?? false,
       agreedPrice,
       status: "PENDING",
@@ -144,6 +145,7 @@ export async function updateBookingRecord(
       clientPhone: input.clientPhone,
       notes: input.notes,
       packageCustomizations: input.packageCustomizations ?? [],
+      vendorCategories: input.vendorCategories,
       isProvincial: input.isProvincial,
       agreedPrice,
     },
@@ -154,7 +156,7 @@ export async function updateBookingRecord(
 /**
  * Admin sets contract terms after discussing with client.
  * Can update agreedPrice, paymentPlan, depositAmount,
- * depositDueDate, and staffNote.
+ * depositDueDate, fullPaymentDueDate, and staffNote.
  * Only callable while booking is PENDING (enforced in the API route).
  */
 export async function setContractTermsRecord(
@@ -169,6 +171,9 @@ export async function setContractTermsRecord(
       ...(input.depositAmount !== undefined && { depositAmount: input.depositAmount }),
       ...(input.depositDueDate !== undefined && {
         depositDueDate: new Date(input.depositDueDate),
+      }),
+      ...(input.fullPaymentDueDate !== undefined && {
+        fullPaymentDueDate: new Date(input.fullPaymentDueDate),
       }),
       ...(input.staffNote !== undefined && { staffNote: input.staffNote }),
     },

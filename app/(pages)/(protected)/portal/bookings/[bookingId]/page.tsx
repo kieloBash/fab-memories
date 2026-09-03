@@ -14,10 +14,11 @@ import { CancelRequestDialog } from "@/features/bookings/components/cancel-reque
 import { PageHeader } from "@/components/ui/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { VENDOR_CATEGORY_ICONS, VENDOR_CATEGORY_LABELS } from "@/features/vendors"
 import {
   ArrowLeft, CalendarDays, MapPin, Users, Package,
   CheckCircle2, AlertCircle, CreditCard, ChevronRight,
-  Phone, Clock, Wallet, Edit3,
+  Phone, Clock, Wallet, Edit3, Store,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { SPRING } from "@/lib/framer/framer-utils"
@@ -114,6 +115,9 @@ export default function ClientBookingDetailPage({ params }: Props) {
   const isConfirmed       = booking.status === "CONFIRMED"
   const isCancelled       = booking.status === "CANCELLED"
   const isCancelRequested = booking.status === "CANCELLATION_REQUESTED"
+
+  // Vendor categories the client requested
+  const vendorCategories = booking.vendorCategories ?? []
 
   return (
     <motion.div
@@ -262,6 +266,30 @@ export default function ClientBookingDetailPage({ params }: Props) {
                 ? <><Wallet size={13} aria-hidden="true" /> Full payment</>
                 : <><CreditCard size={13} aria-hidden="true" /> Installment plan</>}
             </div>
+          </div>
+        )}
+
+        {/* ── Vendor needs (FR-19) — client read-only view ── */}
+        {vendorCategories.length > 0 && (
+          <div className="border-t border-border pt-3 space-y-2">
+            <div className="flex items-center gap-2">
+              <Store size={13} className="text-text-muted" aria-hidden="true" />
+              <p className="text-[11px] text-text-muted font-medium">Vendor services requested</p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {vendorCategories.map((cat) => (
+                <span
+                  key={cat}
+                  className="flex items-center gap-1 rounded-full border border-primary/20 bg-primary-soft px-2.5 py-1 text-[11px] font-medium text-primary"
+                >
+                  <span aria-hidden="true">{VENDOR_CATEGORY_ICONS[cat]}</span>
+                  {VENDOR_CATEGORY_LABELS[cat]}
+                </span>
+              ))}
+            </div>
+            <p className="text-[11px] text-text-muted">
+              Our team will coordinate these vendor services for your event.
+            </p>
           </div>
         )}
 

@@ -7,6 +7,12 @@ const BOOKING_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED", "CANCELLATION_REQ
 const PAYMENT_PLANS    = ["FULL", "INSTALLMENT"] as const
 const PH_MOBILE_REGEX  = /^(\+63|0)9\d{9}$/
 
+// Must stay in sync with VendorCategory enum in schema.prisma
+const VENDOR_CATEGORIES = [
+  "CATERING", "PHOTOGRAPHY", "VIDEOGRAPHY", "FLORALS", "DECORATION",
+  "SOUNDS_LIGHTING", "VENUE", "HAIR_MAKEUP", "ENTERTAINMENT", "TRANSPORTATION", "OTHER",
+] as const
+
 export const createBookingSchema = z.object({
   packageId:             z.string().min(1, "A service package must be selected"),
   eventType:             z.enum(EVENT_TYPES, { error: `Must be one of: ${EVENT_TYPES.join(", ")}` }),
@@ -23,6 +29,8 @@ export const createBookingSchema = z.object({
     .regex(PH_MOBILE_REGEX, "Enter a valid PH mobile number (e.g. 09171234567)"),
   notes:                 z.string().max(1000).optional(),
   packageCustomizations: z.array(z.string().min(1)).optional(),
+  // Vendor categories the client says they need
+  vendorCategories:      z.array(z.enum(VENDOR_CATEGORIES)).optional(),
   isProvincial:          z.boolean().optional(),
 })
 
@@ -42,6 +50,7 @@ export const updateBookingSchema = z.object({
   clientPhone:           z.string().regex(PH_MOBILE_REGEX, "Enter a valid PH mobile number").optional(),
   notes:                 z.string().max(1000).optional(),
   packageCustomizations: z.array(z.string().min(1)).optional(),
+  vendorCategories:      z.array(z.enum(VENDOR_CATEGORIES)).optional(),
   isProvincial:          z.boolean().optional(),
 })
 
@@ -58,7 +67,6 @@ export const setContractTermsSchema = z.object({
   paymentPlan:        z.enum(PAYMENT_PLANS).optional(),
   depositAmount:      z.number().positive().multipleOf(0.01).optional(),
   depositDueDate:     z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
-  // NEW: only relevant for FULL plan — when the remaining balance is due
   fullPaymentDueDate: z.string().refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date" }).optional(),
   staffNote:          z.string().max(500).optional(),
 })
