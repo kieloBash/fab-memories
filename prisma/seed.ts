@@ -105,14 +105,14 @@ const USERS = [
     email: process.env.SEED_ADMIN_EMAIL ?? "admin.fabmemories@example.com",
     role: Role.ADMIN,
   },
-  { username: "coordinator",  password: "FabMemories123!", fullName: "Maria Santos",       email: "coordinator.fabmemories@example.com",  role: Role.COORDINATOR },
+  { username: "coordinator", password: "FabMemories123!", fullName: "Maria Santos", email: "coordinator.fabmemories@example.com", role: Role.COORDINATOR },
   // NEW — additional coordinators so the roster has more than one person
-  { username: "coordinator2", password: "FabMemories123!", fullName: "James Villanueva",   email: "coordinator2.fabmemories@example.com", role: Role.COORDINATOR },
-  { username: "coordinator3", password: "FabMemories123!", fullName: "Kristine Uy",        email: "coordinator3.fabmemories@example.com", role: Role.COORDINATOR },
-  { username: "coordinator4", password: "FabMemories123!", fullName: "Paolo Mendoza",      email: "coordinator4.fabmemories@example.com", role: Role.COORDINATOR },
-  { username: "vendor",       password: "FabMemories123!", fullName: "Juan dela Cruz",     email: "vendor.fabmemories@example.com",       role: Role.VENDOR },
-  { username: "client_anna",  password: "FabMemories123!", fullName: "Anna Reyes",         email: "anna.fabmemories@example.com",         role: Role.CLIENT },
-  { username: "client_ben",   password: "FabMemories123!", fullName: "Ben Torres",         email: "ben.fabmemories@example.com",          role: Role.CLIENT },
+  { username: "coordinator2", password: "FabMemories123!", fullName: "James Villanueva", email: "coordinator2.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "coordinator3", password: "FabMemories123!", fullName: "Kristine Uy", email: "coordinator3.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "coordinator4", password: "FabMemories123!", fullName: "Paolo Mendoza", email: "coordinator4.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "vendor", password: "FabMemories123!", fullName: "Juan dela Cruz", email: "vendor.fabmemories@example.com", role: Role.VENDOR },
+  { username: "client_anna", password: "FabMemories123!", fullName: "Anna Reyes", email: "anna.fabmemories@example.com", role: Role.CLIENT },
+  { username: "client_ben", password: "FabMemories123!", fullName: "Ben Torres", email: "ben.fabmemories@example.com", role: Role.CLIENT },
 ]
 
 const PACKAGES = [
@@ -205,7 +205,7 @@ async function main() {
   console.log("\n🌱  Starting seed…")
 
   if (!process.env.CLERK_SECRET_KEY) throw new Error("CLERK_SECRET_KEY required")
-  if (!process.env.DATABASE_URL)     throw new Error("DATABASE_URL required")
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required")
 
   // ── Cleanup (order matters: children before parents) ─────────────
   console.log("\n🧹  Cleaning up…")
@@ -216,6 +216,7 @@ async function main() {
   await prisma.payment.deleteMany()
   await prisma.booking.deleteMany()
   await prisma.auditLog.deleteMany()
+  await prisma.auditChainState.deleteMany()
   console.log("  🗑  Cleared all transactional data")
 
   // ── Users ─────────────────────────────────────────────────────────
@@ -243,26 +244,26 @@ async function main() {
 
   const annaDebut = await prisma.booking.create({
     data: {
-      clientId:    ids["client_anna"],
-      packageId:   pkgIds[EventType.DEBUT],
-      eventType:   EventType.DEBUT,
-      eventDate:   futureDate(45),
-      venue:       "Waterfront Hotel, Lahug, Cebu City",
-      venueLatitude:  10.3157,
+      clientId: ids["client_anna"],
+      packageId: pkgIds[EventType.DEBUT],
+      eventType: EventType.DEBUT,
+      eventDate: futureDate(45),
+      venue: "Waterfront Hotel, Lahug, Cebu City",
+      venueLatitude: 10.3157,
       venueLongitude: 123.8854,
       venueFormattedAddress: "Waterfront Cebu City Hotel & Casino, 1 Salinas Dr, Lahug, Cebu City",
-      guestCount:  200,
+      guestCount: 200,
       clientPhone: "09171234567",
       isProvincial: true,
-      agreedPrice:  D,
-      paymentPlan:  PaymentPlan.INSTALLMENT,
+      agreedPrice: D,
+      paymentPlan: PaymentPlan.INSTALLMENT,
       depositAmount: DEP,
       depositDueDate: pastDate(22),
-      staffNote:   "Discussed via call — gold & white motif, 3-month installments",
-      status:      BookingStatus.CONFIRMED,
-      depositVerifiedAt:   pastDate(19),
+      staffNote: "Discussed via call — gold & white motif, 3-month installments",
+      status: BookingStatus.CONFIRMED,
+      depositVerifiedAt: pastDate(19),
       depositVerifiedById: ids["coordinator"],
-      notes:       "Gold and white color motif.",
+      notes: "Gold and white color motif.",
       packageCustomizations: ["Extra floral centerpieces", "String quartet"],
       vendorCategories: [VendorCategory.FLORALS, VendorCategory.PHOTOGRAPHY, VendorCategory.CATERING],
     },
@@ -315,25 +316,25 @@ async function main() {
 
   const benCorp = await prisma.booking.create({
     data: {
-      clientId:    ids["client_ben"],
-      packageId:   pkgIds[EventType.CORPORATE],
-      eventType:   EventType.CORPORATE,
-      eventDate:   futureDate(60),
-      venue:       "Radisson Blu Hotel, Cebu City",
-      venueLatitude:  10.3236,
+      clientId: ids["client_ben"],
+      packageId: pkgIds[EventType.CORPORATE],
+      eventType: EventType.CORPORATE,
+      eventDate: futureDate(60),
+      venue: "Radisson Blu Hotel, Cebu City",
+      venueLatitude: 10.3236,
       venueLongitude: 123.9014,
       venueFormattedAddress: "Radisson Blu Cebu, Cebu City, Philippines",
-      guestCount:  300,
+      guestCount: 300,
       clientPhone: "09281234567",
       isProvincial: false,
-      agreedPrice:  CORP,
-      paymentPlan:  PaymentPlan.FULL,
+      agreedPrice: CORP,
+      paymentPlan: PaymentPlan.FULL,
       depositAmount: CORP_DEP,
       depositDueDate: pastDate(10),
       fullPaymentDueDate: futureDate(30),
-      staffNote:   "Full payment after deposit. Due 30 days before event.",
-      status:      BookingStatus.CONFIRMED,
-      depositVerifiedAt:   pastDate(8),
+      staffNote: "Full payment after deposit. Due 30 days before event.",
+      status: BookingStatus.CONFIRMED,
+      depositVerifiedAt: pastDate(8),
       depositVerifiedById: ids["coordinator"],
       vendorCategories: [],
     },
@@ -361,20 +362,20 @@ async function main() {
   // ── 3. Anna / Wedding — PENDING | no terms ─────────────────────
   const annaWeddingPending = await prisma.booking.create({
     data: {
-      clientId:    ids["client_anna"],
-      packageId:   pkgIds[EventType.WEDDING],
-      eventType:   EventType.WEDDING,
-      eventDate:   futureDate(90),
-      venue:       "The Ruins, Talisay City, Negros Occidental",
-      venueLatitude:  10.7202,
+      clientId: ids["client_anna"],
+      packageId: pkgIds[EventType.WEDDING],
+      eventType: EventType.WEDDING,
+      eventDate: futureDate(90),
+      venue: "The Ruins, Talisay City, Negros Occidental",
+      venueLatitude: 10.7202,
       venueLongitude: 122.9656,
       venueFormattedAddress: "The Ruins, Talisay City, Negros Occidental, Philippines",
-      guestCount:  120,
+      guestCount: 120,
       clientPhone: "09171234567",
       isProvincial: true,
-      agreedPrice:  97750,
-      status:      BookingStatus.PENDING,
-      notes:       "String quartet during the reception.",
+      agreedPrice: 97750,
+      status: BookingStatus.PENDING,
+      notes: "String quartet during the reception.",
       packageCustomizations: ["String quartet", "Garden setup"],
       vendorCategories: [VendorCategory.PHOTOGRAPHY, VendorCategory.CATERING, VendorCategory.FLORALS],
     },
@@ -388,22 +389,22 @@ async function main() {
   // stays PENDING — it never becomes a second CONFIRMED event on that date.
   const benBirthday = await prisma.booking.create({
     data: {
-      clientId:    ids["client_ben"],
-      packageId:   pkgIds[EventType.BIRTHDAY],
-      eventType:   EventType.BIRTHDAY,
-      eventDate:   futureDate(45),
-      venue:       "Balay ni Atong, Cebu City",
-      guestCount:  60,
+      clientId: ids["client_ben"],
+      packageId: pkgIds[EventType.BIRTHDAY],
+      eventType: EventType.BIRTHDAY,
+      eventDate: futureDate(45),
+      venue: "Balay ni Atong, Cebu City",
+      guestCount: 60,
       clientPhone: "09281234567",
       isProvincial: true,
-      agreedPrice:  34500,
-      paymentPlan:  PaymentPlan.FULL,
+      agreedPrice: 34500,
+      paymentPlan: PaymentPlan.FULL,
       depositAmount: 10350,
       depositDueDate: pastDate(3),
       fullPaymentDueDate: futureDate(7),
-      staffNote:   "Deposit was due 3 days ago. Need to follow up.",
-      status:      BookingStatus.PENDING,
-      notes:       "Dinosaur theme for the kids.",
+      staffNote: "Deposit was due 3 days ago. Need to follow up.",
+      status: BookingStatus.PENDING,
+      notes: "Dinosaur theme for the kids.",
       vendorCategories: [VendorCategory.DECORATION, VendorCategory.ENTERTAINMENT],
     },
   })
@@ -412,16 +413,16 @@ async function main() {
   // ── 5. Anna / Wedding — CANCELLED ───────────────────────────────
   await prisma.booking.create({
     data: {
-      clientId:    ids["client_anna"],
-      packageId:   pkgIds[EventType.WEDDING],
-      eventType:   EventType.WEDDING,
-      eventDate:   pastDate(10),
-      venue:       "Plantation Bay Resort, Mactan, Lapu-Lapu City",
-      guestCount:  80,
+      clientId: ids["client_anna"],
+      packageId: pkgIds[EventType.WEDDING],
+      eventType: EventType.WEDDING,
+      eventDate: pastDate(10),
+      venue: "Plantation Bay Resort, Mactan, Lapu-Lapu City",
+      guestCount: 80,
       clientPhone: "09171234567",
       isProvincial: true,
-      agreedPrice:  97750,
-      status:      BookingStatus.CANCELLED,
+      agreedPrice: 97750,
+      status: BookingStatus.CANCELLED,
       cancellationReason: "Client requested cancellation due to venue conflict.",
       vendorCategories: [],
     },
@@ -443,26 +444,26 @@ async function main() {
   await prisma.bookingVendor.createMany({
     data: [
       {
-        bookingId:   annaDebut.id,
-        vendorId:    floralsId,
-        category:    VendorCategory.FLORALS,
-        notes:       "Gold & white floral setup. ₱15,000 agreed.",
+        bookingId: annaDebut.id,
+        vendorId: floralsId,
+        category: VendorCategory.FLORALS,
+        notes: "Gold & white floral setup. ₱15,000 agreed.",
         contactedAt: new Date(),
         confirmedAt: new Date(),
       },
       {
-        bookingId:   annaDebut.id,
-        vendorId:    photoId,
-        category:    VendorCategory.PHOTOGRAPHY,
-        notes:       "Full-day package. ₱25,000 agreed.",
+        bookingId: annaDebut.id,
+        vendorId: photoId,
+        category: VendorCategory.PHOTOGRAPHY,
+        notes: "Full-day package. ₱25,000 agreed.",
         contactedAt: new Date(),
         confirmedAt: new Date(),
       },
       {
-        bookingId:   annaDebut.id,
-        vendorId:    cateringId,
-        category:    VendorCategory.CATERING,
-        notes:       "200 pax buffet. ₱130,000 agreed.",
+        bookingId: annaDebut.id,
+        vendorId: cateringId,
+        category: VendorCategory.CATERING,
+        notes: "200 pax buffet. ₱130,000 agreed.",
         contactedAt: new Date(),
         confirmedAt: null,
       },
@@ -472,10 +473,10 @@ async function main() {
 
   await prisma.bookingVendor.create({
     data: {
-      bookingId:   benCorp.id,
-      vendorId:    decorId,
-      category:    VendorCategory.DECORATION,
-      notes:       "Corporate backdrop setup. ₱20,000 agreed.",
+      bookingId: benCorp.id,
+      vendorId: decorId,
+      category: VendorCategory.DECORATION,
+      notes: "Corporate backdrop setup. ₱20,000 agreed.",
       contactedAt: new Date(),
       confirmedAt: new Date(),
     },

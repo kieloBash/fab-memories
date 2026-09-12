@@ -1,10 +1,14 @@
 // prisma/schema.prisma
-// CHANGES FROM PREVIOUS VERSION (Module 5 — Staff Scheduling):
-//   + enum StaffTaskRole
-//   + model StaffAssignment
-//   + Booking.staffAssignments  StaffAssignment[]
-//   + User.staffAssignments     StaffAssignment[]   (coordinatorId → User, not a separate Coordinator model —
-//     coordinators are already User rows with role = COORDINATOR, same pattern as BookingConfirmedBy)
+// CHANGES FROM PREVIOUS VERSION (Module 7 — Secured Event Planning and Audit Trail):
+//   + AuditLog.sequence, previousHash, hash — hash-chain fields for tamper detection
+//   + AuditLog.metadata now forced to Postgres `json` (not `jsonb`) via @db.Json —
+//     jsonb silently reorders object keys on storage, which would make the same
+//     logical metadata hash differently after a round-trip through the DB even
+//     with zero tampering. Plain `json` preserves the original text.
+//   + model AuditChainState — singleton row locked via SELECT ... FOR UPDATE
+//     inside logAction()'s transaction, serializing all writes so no two audit
+//     entries can ever be created against the same previousHash (which would
+//     fork the chain and defeat the tamper-detection guarantee).
 
 generator client {
   provider = "prisma-client"
@@ -115,7 +119,6 @@ enum VendorCategory {
   OTHER
 }
 
-// NEW: fixed task-role taxonomy for staff assignments (FR-38)
 enum StaffTaskRole {
   LEAD_COORDINATOR
   GUEST_REGISTRATION
@@ -142,15 +145,34 @@ model User {
 
   auditLogs        AuditLog[]
   bookings         Booking[]
-  confirmedBy      Booking[]  @relation("BookingConfirmedBy")
-  verifiedPayments Payment[]  @relation("PaymentVerifiedBy")
-  staffAssignments StaffAssignment[] @relation("CoordinatorAssignments") // NEW
+  confirmedBy      Booking[]         @relation("BookingConfirmedBy")
+  verifiedPayments Payment[]         @relation("PaymentVerifiedBy")
+  staffAssignments StaffAssignment[] @relation("CoordinatorAssignments")
 
   @@index([role])
 }
 
+/**
+ * NEW: singleton row (id is always 1) tracking the tip of the audit
+ * hash chain. logAction() locks this row with SELECT ... FOR UPDATE
+ * inside a transaction before computing the next entry's hash — this
+ * is what guarantees the chain can never fork under concurrent writes.
+ */
+model AuditChainState {
+  id           Int      @id @default(1)
+  lastHash     String?
+  lastSequence Int      @default(0)
+  updatedAt    DateTime @updatedAt
+}
+
 model AuditLog {
-  id          String      @id @default(cuid())
+  id String @id @default(cuid())
+
+  /// Strictly increasing chain position, assigned inside the same locked
+  /// transaction as the hash computation — never DB autoincrement, so it
+  /// can never disagree with AuditChainState.lastSequence.
+  sequence Int @unique
+
   userId      String?
   user        User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
   action      AuditAction
@@ -158,11 +180,22 @@ model AuditLog {
   description String
   status      AuditStatus @default(SUCCESS)
   metadata    Json?
-  createdAt   DateTime    @default(now())
+
+  /// Hash of the previous entry in the chain (null only for the very
+  /// first entry ever written — the genesis entry).
+  previousHash String?
+
+  /// SHA-256 of (sequence, previousHash, userId, action, module,
+  /// description, status, canonicalized metadata, createdAt). See
+  /// lib/audit/chain.ts for the exact algorithm.
+  hash String
+
+  createdAt DateTime @default(now())
 
   @@index([userId])
   @@index([module])
   @@index([createdAt])
+  @@index([sequence])
 }
 
 model Package {
@@ -222,18 +255,17 @@ model BookingVendor {
   @@index([vendorId])
 }
 
-// NEW: coordinator assigned to a booking with a designated task (FR-38)
 model StaffAssignment {
-  id            String        @id @default(cuid())
+  id            String  @id @default(cuid())
   bookingId     String
-  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking       Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
   coordinatorId String
-  coordinator   User          @relation("CoordinatorAssignments", fields: [coordinatorId], references: [id], onDelete: Cascade)
+  coordinator   User    @relation("CoordinatorAssignments", fields: [coordinatorId], references: [id], onDelete: Cascade)
 
-  taskRole  StaffTaskRole
-  taskNote  String? // free-text detail when taskRole = OTHER, or extra context
-  isBackup  Boolean       @default(false) // FR-39: backup coordinator designation
-  notes     String? // admin/coordinator note about this assignment
+  taskRole StaffTaskRole
+  taskNote String?
+  isBackup Boolean       @default(false)
+  notes    String?
 
   assignedAt DateTime @default(now())
   updatedAt  DateTime @updatedAt
@@ -286,7 +318,7 @@ model Booking {
   payments         Payment[]
   installments     Installment[]
   vendors          BookingVendor[]
-  staffAssignments StaffAssignment[] // NEW
+  staffAssignments StaffAssignment[]
 
   @@index([clientId])
   @@index([status])

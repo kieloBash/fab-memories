@@ -15,6 +15,11 @@ import { Webhook } from 'svix';
  *    defaults to CLIENT and writes that back to Clerk metadata.
  *  - user.updated: syncs email/username/fullName/role changes.
  *  - user.deleted: removes the Prisma row (or soft-deletes via isActive).
+ *  - session.created: logs a LOGIN audit entry (FR-48 explicitly
+ *    requires login/logout events be logged — this was previously a
+ *    gap: the AuditAction.LOGIN enum value existed but nothing ever
+ *    wrote it).
+ *  - session.ended / session.removed: logs a LOGOUT audit entry.
  */
 export async function POST(req: Request) {
     const payload = await req.text();
@@ -99,6 +104,47 @@ export async function POST(req: Request) {
                 await prisma.user.updateMany({
                     where: { clerkId: data.id },
                     data: { isActive: false },
+                });
+                break;
+            }
+
+            case 'session.created': {
+                const dbUser = await prisma.user.findUnique({
+                    where: { clerkId: data.user_id },
+                    select: { id: true, fullName: true, role: true },
+                });
+
+                await logAction({
+                    userId: dbUser?.id ?? null,
+                    action: 'LOGIN',
+                    module: 'AUTH',
+                    description: dbUser
+                        ? `${dbUser.fullName} (${dbUser.role}) signed in`
+                        : 'A user signed in',
+                    metadata: { clerkSessionId: data.id, clerkUserId: data.user_id },
+                });
+                break;
+            }
+
+            // Clerk fires `session.ended` on normal sign-out and
+            // `session.removed` when a session is revoked (e.g. from
+            // another device, or by an admin) — both represent the
+            // session no longer being active, so both are logged as LOGOUT.
+            case 'session.ended':
+            case 'session.removed': {
+                const dbUser = await prisma.user.findUnique({
+                    where: { clerkId: data.user_id },
+                    select: { id: true, fullName: true, role: true },
+                });
+
+                await logAction({
+                    userId: dbUser?.id ?? null,
+                    action: 'LOGOUT',
+                    module: 'AUTH',
+                    description: dbUser
+                        ? `${dbUser.fullName} (${dbUser.role}) signed out`
+                        : 'A user session ended',
+                    metadata: { clerkSessionId: data.id, clerkUserId: data.user_id, eventType },
                 });
                 break;
             }
