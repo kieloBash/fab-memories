@@ -8,9 +8,10 @@ import { useBookings, EVENT_TYPE_LABELS } from "@/features/bookings"
 import { BookingStatusBadge } from "@/features/bookings/components/booking-status-badge"
 import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
+import { VENDOR_CATEGORY_ICONS, VENDOR_CATEGORY_LABELS } from "@/features/vendors"
 import {
   CalendarHeart, Clock, CalendarDays, FileText,
-  Plus, ChevronRight, Sparkles,
+  Plus, ChevronRight, Sparkles, Store,
 } from "lucide-react"
 import { SPRING } from "@/lib/framer/framer-utils"
 
@@ -29,25 +30,15 @@ const itemVariants = {
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
 
-/**
- * FIX: this page previously rendered 4 stat cards that were always
- * "—" — hard-coded placeholder values with no data wiring at all.
- * It now pulls the client's real bookings/payments and derives:
- *   - their most relevant active booking's status
- *   - days remaining until that event
- *   - next payment due (if terms are set and deposit isn't verified)
- * With zero bookings, it shows a proper empty state + CTA instead of
- * four dashes, which is a much clearer signal than "the data failed
- * to load."
- */
+const fmtDateShort = (iso: string) =>
+  new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
+
 export default function ClientPortalPage() {
   const router = useRouter()
   const { data: bookings, isLoading } = useBookings()
 
   const activeBooking = useMemo(() => {
     if (!bookings || bookings.length === 0) return null
-    // Prefer a CONFIRMED booking with the soonest upcoming date;
-    // fall back to the most recently created PENDING booking.
     const confirmed = bookings
       .filter((b) => b.status === "CONFIRMED" && new Date(b.eventDate) >= new Date())
       .sort((a, b) => new Date(a.eventDate).getTime() - new Date(b.eventDate).getTime())
@@ -58,6 +49,16 @@ export default function ClientPortalPage() {
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     return pending[0] ?? bookings[0]
   }, [bookings])
+
+  // NEW: bookings other than the active one, most recent first —
+  // surfaces the multi-booking case (repeat clients, multiple events)
+  // instead of silently only ever showing one.
+  const otherBookings = useMemo(() => {
+    if (!bookings || !activeBooking) return []
+    return bookings
+      .filter((b) => b.id !== activeBooking.id)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+  }, [bookings, activeBooking])
 
   const daysToEvent = useMemo(() => {
     if (!activeBooking) return null
@@ -103,6 +104,8 @@ export default function ClientPortalPage() {
       icon: FileText,
     },
   ]
+
+  const vendorCategories = activeBooking?.vendorCategories ?? []
 
   return (
     <motion.div
@@ -177,21 +180,73 @@ export default function ClientPortalPage() {
             ))}
           </motion.div>
 
-          <motion.button
-            variants={itemVariants}
-            onClick={() => router.push(`/portal/bookings/${activeBooking.id}`)}
-            className="flex items-center justify-between rounded-xl border border-border bg-white p-5 hover:-translate-y-0.5 hover:shadow-card-hover hover:border-border-strong transition-all text-left w-full"
-          >
-            <div className="min-w-0">
-              <p className="text-[14px] font-semibold tracking-tight text-text-main">
-                {EVENT_TYPE_LABELS[activeBooking.eventType]}
+          <motion.div variants={itemVariants} className="rounded-xl border border-border bg-white overflow-hidden">
+            <button
+              onClick={() => router.push(`/portal/bookings/${activeBooking.id}`)}
+              className="flex w-full items-center justify-between p-5 hover:bg-primary-soft/10 transition-colors text-left"
+            >
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold tracking-tight text-text-main">
+                  {EVENT_TYPE_LABELS[activeBooking.eventType]}
+                </p>
+                <p className="text-[12px] text-text-muted mt-0.5">
+                  {fmtDate(activeBooking.eventDate)} · {activeBooking.venue}
+                </p>
+              </div>
+              <ChevronRight size={16} className="text-text-muted shrink-0" aria-hidden="true" />
+            </button>
+
+            {/* NEW: vendor needs recap — already visible on the booking
+                detail page; surfacing it here too saves a click for
+                clients checking back on what they requested. */}
+            {vendorCategories.length > 0 && (
+              <div className="border-t border-border px-5 py-3 flex items-center gap-2 flex-wrap">
+                <Store size={12} className="text-text-muted shrink-0" aria-hidden="true" />
+                {vendorCategories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="flex items-center gap-1 rounded-full border border-primary/20 bg-primary-soft px-2 py-0.5 text-[10px] font-medium text-primary"
+                  >
+                    <span aria-hidden="true">{VENDOR_CATEGORY_ICONS[cat]}</span>
+                    {VENDOR_CATEGORY_LABELS[cat]}
+                  </span>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
+          {/* NEW: other bookings — only rendered for repeat clients with
+              more than one booking; previously this case was silently
+              collapsed into always showing just the one "active" booking. */}
+          {otherBookings.length > 0 && (
+            <motion.div variants={itemVariants} className="flex flex-col gap-3">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
+                Your other bookings
               </p>
-              <p className="text-[12px] text-text-muted mt-0.5">
-                {fmtDate(activeBooking.eventDate)} · {activeBooking.venue}
-              </p>
-            </div>
-            <ChevronRight size={16} className="text-text-muted shrink-0" aria-hidden="true" />
-          </motion.button>
+              <div className="rounded-xl border border-border bg-white overflow-hidden divide-y divide-border">
+                {otherBookings.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => router.push(`/portal/bookings/${b.id}`)}
+                    className="w-full flex items-center justify-between gap-3 p-4 text-left hover:bg-primary-soft/10 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-[13px] font-semibold text-text-main">
+                          {EVENT_TYPE_LABELS[b.eventType]}
+                        </p>
+                        <BookingStatusBadge status={b.status} />
+                      </div>
+                      <p className="text-[11px] text-text-muted mt-0.5">
+                        {fmtDateShort(b.eventDate)} · {b.venue}
+                      </p>
+                    </div>
+                    <ChevronRight size={14} className="text-text-muted shrink-0" aria-hidden="true" />
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          )}
         </>
       )}
     </motion.div>
