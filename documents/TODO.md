@@ -1,2 +1,1 @@
-1. update the display of prices for the provincial price if provincial, thinking of updating the db
-2. ui for dialogs
+2. UI active for sidebar

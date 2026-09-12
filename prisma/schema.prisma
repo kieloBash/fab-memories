@@ -1,10 +1,10 @@
 // prisma/schema.prisma
-// CHANGES FROM PREVIOUS VERSION:
-//   + enum VendorCategory
-//   + model Vendor
-//   + model BookingVendor
-//   + Booking.vendorCategories  VendorCategory[]   (client-specified needs)
-//   + Booking.vendors           BookingVendor[]     (admin-assigned vendors)
+// CHANGES FROM PREVIOUS VERSION (Module 5 — Staff Scheduling):
+//   + enum StaffTaskRole
+//   + model StaffAssignment
+//   + Booking.staffAssignments  StaffAssignment[]
+//   + User.staffAssignments     StaffAssignment[]   (coordinatorId → User, not a separate Coordinator model —
+//     coordinators are already User rows with role = COORDINATOR, same pattern as BookingConfirmedBy)
 
 generator client {
   provider = "prisma-client"
@@ -101,7 +101,6 @@ enum PaymentPlan {
   INSTALLMENT
 }
 
-// NEW: vendor service categories
 enum VendorCategory {
   CATERING
   PHOTOGRAPHY
@@ -113,6 +112,16 @@ enum VendorCategory {
   HAIR_MAKEUP
   ENTERTAINMENT
   TRANSPORTATION
+  OTHER
+}
+
+// NEW: fixed task-role taxonomy for staff assignments (FR-38)
+enum StaffTaskRole {
+  LEAD_COORDINATOR
+  GUEST_REGISTRATION
+  VENDOR_LIAISON
+  LOGISTICS
+  PROGRAM_FLOW
   OTHER
 }
 
@@ -135,6 +144,7 @@ model User {
   bookings         Booking[]
   confirmedBy      Booking[]  @relation("BookingConfirmedBy")
   verifiedPayments Payment[]  @relation("PaymentVerifiedBy")
+  staffAssignments StaffAssignment[] @relation("CoordinatorAssignments") // NEW
 
   @@index([role])
 }
@@ -173,17 +183,16 @@ model Package {
   @@index([isActive])
 }
 
-// NEW: private vendor directory (admin-managed)
 model Vendor {
   id             String         @id @default(cuid())
   name           String
   category       VendorCategory
-  contactName    String? // name of the person to contact
+  contactName    String?
   contactPhone   String?
   contactEmail   String?
-  contactChannel String? // e.g. "Viber", "FB Messenger", "SMS", "Email"
-  coverageAreas  String[]       @default([]) // ["Metro Manila", "Cebu", "Batangas", …]
-  notes          String? // admin's private notes (rates, quality, etc.)
+  contactChannel String?
+  coverageAreas  String[]       @default([])
+  notes          String?
   isActive       Boolean        @default(true)
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -194,7 +203,6 @@ model Vendor {
   @@index([isActive])
 }
 
-// NEW: many-to-many join — vendors assigned to a booking
 model BookingVendor {
   id        String  @id @default(cuid())
   bookingId String
@@ -202,16 +210,37 @@ model BookingVendor {
   vendorId  String
   vendor    Vendor  @relation(fields: [vendorId], references: [id], onDelete: Cascade)
 
-  category    VendorCategory // what category this vendor fulfils for this booking
-  notes       String? // admin note: agreed rate, scope, special instructions
-  contactedAt DateTime? // admin marked "I've called this vendor"
-  confirmedAt DateTime? // admin confirmed vendor is available for this date
+  category    VendorCategory
+  notes       String?
+  contactedAt DateTime?
+  confirmedAt DateTime?
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
   @@unique([bookingId, vendorId])
   @@index([bookingId])
   @@index([vendorId])
+}
+
+// NEW: coordinator assigned to a booking with a designated task (FR-38)
+model StaffAssignment {
+  id            String        @id @default(cuid())
+  bookingId     String
+  booking       Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  coordinatorId String
+  coordinator   User          @relation("CoordinatorAssignments", fields: [coordinatorId], references: [id], onDelete: Cascade)
+
+  taskRole  StaffTaskRole
+  taskNote  String? // free-text detail when taskRole = OTHER, or extra context
+  isBackup  Boolean       @default(false) // FR-39: backup coordinator designation
+  notes     String? // admin/coordinator note about this assignment
+
+  assignedAt DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([bookingId, coordinatorId])
+  @@index([bookingId])
+  @@index([coordinatorId])
 }
 
 model Booking {
@@ -234,7 +263,6 @@ model Booking {
 
   clientPhone String
 
-  // NEW: categories the client says they need (set at booking request time)
   vendorCategories VendorCategory[] @default([])
 
   isProvincial Boolean @default(false)
@@ -255,9 +283,10 @@ model Booking {
   createdAt                 DateTime  @default(now())
   updatedAt                 DateTime  @updatedAt
 
-  payments     Payment[]
-  installments Installment[]
-  vendors      BookingVendor[] // NEW: assigned vendors
+  payments         Payment[]
+  installments     Installment[]
+  vendors          BookingVendor[]
+  staffAssignments StaffAssignment[] // NEW
 
   @@index([clientId])
   @@index([status])

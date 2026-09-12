@@ -2,21 +2,24 @@
 /**
  * Seed file for Fab Memories Events.
  *
- * Fixes applied vs previous version:
- *   - seedVendors() is now awaited inside main() — no more fire-and-forget
- *   - Vendor + BookingVendor cleanup moved to top of main() cleanup block
- *     (before booking cleanup) so FK constraints are satisfied
- *   - vendorCategories added to relevant booking creates (FR-19)
- *   - fullPaymentDueDate on FULL plan bookings
- *   - FULL_BALANCE payment type on Ben's corporate booking
- *   - clientPhone on all bookings
- *   - Overdue deposit scenario (Ben's Birthday — past depositDueDate, no deposit)
+ * CHANGES IN THIS VERSION (Module 5 — Staff Scheduling):
+ *   - 3 additional COORDINATOR accounts added (roster now has 4 total)
+ *   - staffAssignment cleanup added to the top-of-run wipe
+ *   - Ben's Birthday eventDate moved from +14d to +45d — same date as
+ *     Anna's Debut. This is intentional: Maria Santos is assigned as
+ *     coordinator on BOTH bookings, producing a real, pre-seeded FR-40
+ *     conflict for testing. Safe to do since Ben's Birthday stays PENDING
+ *     (the one-CONFIRMED-event-per-day rule only applies to CONFIRMED
+ *     bookings, and Ben's Birthday never reaches CONFIRMED in this seed).
+ *   - StaffAssignment rows seeded across 2 bookings to demonstrate both
+ *     the FR-37 staffing recommendation banner (under-staffed/amber state)
+ *     and FR-39 backup designation.
  *
  * Bookings:
  *   1. Anna / Debut    CONFIRMED  | provincial ₱74,750 | INSTALLMENT plan
  *   2. Ben  / Corp     CONFIRMED  | metro ₱50,000      | FULL plan (deposit verified, balance SUBMITTED)
  *   3. Anna / Wedding  PENDING    | provincial ₱97,750 | no terms  (for "awaiting terms" test)
- *   4. Ben  / Birthday PENDING    | provincial ₱34,500 | FULL plan | deposit OVERDUE
+ *   4. Ben  / Birthday PENDING    | provincial ₱34,500 | FULL plan | deposit OVERDUE | same date as #1 (staff conflict demo)
  *   5. Anna / Wedding  CANCELLED
  */
 
@@ -30,6 +33,7 @@ import {
   PaymentType,
   PrismaClient,
   Role,
+  StaffTaskRole,
   VendorCategory,
 } from "@/app/generated/prisma/client"
 import { createClerkClient } from "@clerk/backend"
@@ -101,10 +105,14 @@ const USERS = [
     email: process.env.SEED_ADMIN_EMAIL ?? "admin.fabmemories@example.com",
     role: Role.ADMIN,
   },
-  { username: "coordinator", password: "FabMemories123!", fullName: "Maria Santos",    email: "coordinator.fabmemories@example.com", role: Role.COORDINATOR },
-  { username: "vendor",      password: "FabMemories123!", fullName: "Juan dela Cruz",  email: "vendor.fabmemories@example.com",      role: Role.VENDOR },
-  { username: "client_anna", password: "FabMemories123!", fullName: "Anna Reyes",      email: "anna.fabmemories@example.com",        role: Role.CLIENT },
-  { username: "client_ben",  password: "FabMemories123!", fullName: "Ben Torres",      email: "ben.fabmemories@example.com",         role: Role.CLIENT },
+  { username: "coordinator",  password: "FabMemories123!", fullName: "Maria Santos",       email: "coordinator.fabmemories@example.com",  role: Role.COORDINATOR },
+  // NEW — additional coordinators so the roster has more than one person
+  { username: "coordinator2", password: "FabMemories123!", fullName: "James Villanueva",   email: "coordinator2.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "coordinator3", password: "FabMemories123!", fullName: "Kristine Uy",        email: "coordinator3.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "coordinator4", password: "FabMemories123!", fullName: "Paolo Mendoza",      email: "coordinator4.fabmemories@example.com", role: Role.COORDINATOR },
+  { username: "vendor",       password: "FabMemories123!", fullName: "Juan dela Cruz",     email: "vendor.fabmemories@example.com",       role: Role.VENDOR },
+  { username: "client_anna",  password: "FabMemories123!", fullName: "Anna Reyes",         email: "anna.fabmemories@example.com",         role: Role.CLIENT },
+  { username: "client_ben",   password: "FabMemories123!", fullName: "Ben Torres",         email: "ben.fabmemories@example.com",          role: Role.CLIENT },
 ]
 
 const PACKAGES = [
@@ -201,7 +209,8 @@ async function main() {
 
   // ── Cleanup (order matters: children before parents) ─────────────
   console.log("\n🧹  Cleaning up…")
-  await prisma.bookingVendor.deleteMany()   // must come before vendor + booking
+  await prisma.staffAssignment.deleteMany() // NEW — must come before booking
+  await prisma.bookingVendor.deleteMany()
   await prisma.vendor.deleteMany()
   await prisma.installment.deleteMany()
   await prisma.payment.deleteMany()
@@ -255,7 +264,6 @@ async function main() {
       depositVerifiedById: ids["coordinator"],
       notes:       "Gold and white color motif.",
       packageCustomizations: ["Extra floral centerpieces", "String quartet"],
-      // Client requested these vendor categories
       vendorCategories: [VendorCategory.FLORALS, VendorCategory.PHOTOGRAPHY, VendorCategory.CATERING],
     },
   })
@@ -327,7 +335,6 @@ async function main() {
       status:      BookingStatus.CONFIRMED,
       depositVerifiedAt:   pastDate(8),
       depositVerifiedById: ids["coordinator"],
-      // No vendor categories — tests TC-VM-10 (no coverage check)
       vendorCategories: [],
     },
   })
@@ -352,7 +359,7 @@ async function main() {
   console.log(`  ✅  + deposit VERIFIED, full balance (₱${CORP_BAL.toLocaleString()}) SUBMITTED`)
 
   // ── 3. Anna / Wedding — PENDING | no terms ─────────────────────
-  await prisma.booking.create({
+  const annaWeddingPending = await prisma.booking.create({
     data: {
       clientId:    ids["client_anna"],
       packageId:   pkgIds[EventType.WEDDING],
@@ -375,20 +382,24 @@ async function main() {
   console.log(`  ✅  PENDING   | Anna | Wedding  +90d  | provincial ₱97,750 | no terms`)
 
   // ── 4. Ben / Birthday — PENDING | FULL | deposit OVERDUE ────────
-  await prisma.booking.create({
+  // NOTE: eventDate intentionally set to the SAME day as Anna's Debut
+  // (+45d) so a coordinator can be seeded onto both, producing a real
+  // FR-40 scheduling conflict for testing. Safe because this booking
+  // stays PENDING — it never becomes a second CONFIRMED event on that date.
+  const benBirthday = await prisma.booking.create({
     data: {
       clientId:    ids["client_ben"],
       packageId:   pkgIds[EventType.BIRTHDAY],
       eventType:   EventType.BIRTHDAY,
-      eventDate:   futureDate(14),
+      eventDate:   futureDate(45),
       venue:       "Balay ni Atong, Cebu City",
       guestCount:  60,
       clientPhone: "09281234567",
       isProvincial: true,
       agreedPrice:  34500,
       paymentPlan:  PaymentPlan.FULL,
-      depositAmount: 10350,         // 30%
-      depositDueDate: pastDate(3),  // OVERDUE — 3 days ago
+      depositAmount: 10350,
+      depositDueDate: pastDate(3),
       fullPaymentDueDate: futureDate(7),
       staffNote:   "Deposit was due 3 days ago. Need to follow up.",
       status:      BookingStatus.PENDING,
@@ -396,7 +407,7 @@ async function main() {
       vendorCategories: [VendorCategory.DECORATION, VendorCategory.ENTERTAINMENT],
     },
   })
-  console.log(`  ✅  PENDING   | Ben  | Birthday +14d  | provincial ₱34,500 | FULL | deposit OVERDUE`)
+  console.log(`  ✅  PENDING   | Ben  | Birthday +45d  | provincial ₱34,500 | FULL | deposit OVERDUE | same date as Anna's Debut`)
 
   // ── 5. Anna / Wedding — CANCELLED ───────────────────────────────
   await prisma.booking.create({
@@ -429,7 +440,6 @@ async function main() {
 
   const [floralsId, photoId, , cateringId, decorId] = vendorIds
 
-  // Assign vendors to Anna's Debut booking (confirmed)
   await prisma.bookingVendor.createMany({
     data: [
       {
@@ -454,13 +464,12 @@ async function main() {
         category:    VendorCategory.CATERING,
         notes:       "200 pax buffet. ₱130,000 agreed.",
         contactedAt: new Date(),
-        confirmedAt: null, // contacted but not yet confirmed
+        confirmedAt: null,
       },
     ],
   })
   console.log(`\n  ✅  3 vendors assigned to Anna's Debut (2 confirmed, 1 contacted/pending)`)
 
-  // Assign vendors to Ben's Corporate booking
   await prisma.bookingVendor.create({
     data: {
       bookingId:   benCorp.id,
@@ -473,20 +482,69 @@ async function main() {
   })
   console.log(`  ✅  1 vendor assigned to Ben's Corporate`)
 
+  // ── Staff scheduling (Module 5) ────────────────────────────────────
+  console.log("\n👷  Seeding staff assignments…\n")
+
+  // Anna's Debut — 200 guests → FR-37 recommends 8–12 coordinators.
+  // Seeded with 3 primary + 1 backup — intentionally UNDER the
+  // recommendation to demonstrate the "below recommended staffing"
+  // amber banner in the admin panel.
+  await prisma.staffAssignment.createMany({
+    data: [
+      {
+        bookingId: annaDebut.id, coordinatorId: ids["coordinator"],
+        taskRole: StaffTaskRole.LEAD_COORDINATOR, isBackup: false,
+        notes: "Overall lead for the debut — client's main point of contact on-site.",
+      },
+      {
+        bookingId: annaDebut.id, coordinatorId: ids["coordinator3"],
+        taskRole: StaffTaskRole.GUEST_REGISTRATION, isBackup: false,
+      },
+      {
+        bookingId: annaDebut.id, coordinatorId: ids["coordinator4"],
+        taskRole: StaffTaskRole.VENDOR_LIAISON, isBackup: false,
+        taskNote: "Coordinate florist and photographer arrival times",
+      },
+      {
+        bookingId: annaDebut.id, coordinatorId: ids["coordinator2"],
+        taskRole: StaffTaskRole.LOGISTICS, isBackup: true,
+        notes: "On-call backup — confirmed available but not primary staffed.",
+      },
+    ],
+  })
+  console.log(`  ✅  Anna's Debut: 3 primary + 1 backup coordinator (below 8–12 recommended — demonstrates staffing banner)`)
+
+  // Ben's Birthday — SAME DATE as Anna's Debut. Coordinator "coordinator"
+  // (Maria Santos) is assigned here too, which is a genuine FR-40
+  // scheduling conflict with her Anna's Debut assignment above.
+  await prisma.staffAssignment.create({
+    data: {
+      bookingId: benBirthday.id, coordinatorId: ids["coordinator"],
+      taskRole: StaffTaskRole.LEAD_COORDINATOR, isBackup: false,
+      notes: "⚠ Seeded deliberately alongside Anna's Debut (same date) to test FR-40 conflict detection.",
+    },
+  })
+  console.log(`  ✅  Ben's Birthday: 1 coordinator (Maria Santos) — CONFLICTS with her Anna's Debut assignment (same date, by design)`)
+
+  // Anna's Wedding (PENDING, 120 guests → 7–8 recommended) — left
+  // unstaffed to demonstrate the empty state on a booking that hasn't
+  // had contract terms set yet.
+
   // ── Summary ───────────────────────────────────────────────────────
   console.log("\n✨  Seed complete!\n")
   console.log("  Staff logins (/staff-login):")
-  console.log("    admin / coordinator / vendor  →  FabMemories123!")
+  console.log("    admin / coordinator / coordinator2 / coordinator3 / coordinator4 / vendor  →  FabMemories123!")
   console.log("\n  Client logins (/sign-in by email):")
   console.log("    anna.fabmemories@example.com  →  FabMemories123!")
   console.log("    ben.fabmemories@example.com   →  FabMemories123!\n")
   console.log("  Scenarios:")
-  console.log("    Anna Debut   : CONFIRMED | INSTALLMENT | inst#2 overdue + SUBMITTED | 3 vendors (Florals ✓, Photo ✓, Catering pending)")
-  console.log("    Ben  Corp    : CONFIRMED | FULL        | balance SUBMITTED (to verify) | 1 vendor (Decoration ✓)")
-  console.log("    Anna Wedding : PENDING   | no terms    | 3 vendor categories requested")
-  console.log("    Ben  Birthday: PENDING   | FULL        | deposit OVERDUE | 2 vendor categories requested")
+  console.log("    Anna Debut   : CONFIRMED | INSTALLMENT | inst#2 overdue + SUBMITTED | 3 vendors | 3 primary + 1 backup coordinator")
+  console.log("    Ben  Corp    : CONFIRMED | FULL        | balance SUBMITTED (to verify) | 1 vendor | no staff yet")
+  console.log("    Anna Wedding : PENDING   | no terms    | 3 vendor categories requested | no staff yet")
+  console.log("    Ben  Birthday: PENDING   | FULL        | deposit OVERDUE | same date as Anna's Debut | 1 coordinator (CONFLICTS with Anna's Debut)")
   console.log("    Anna Wedding : CANCELLED\n")
   console.log("  Vendor directory: 5 vendors seeded (Florals, Photography, Videography, Catering, Decoration)")
+  console.log("  Coordinator roster: 4 coordinators seeded (Maria Santos, James Villanueva, Kristine Uy, Paolo Mendoza)")
 }
 
 main()

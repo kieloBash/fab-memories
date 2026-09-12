@@ -1,20 +1,25 @@
 // app/(pages)/(protected)/staff/coordinator/calendar/page.tsx
+"use client"
 
-import { ComingSoonPlaceholder } from "@/components/ui/coming-soon-placeholder"
+import { motion } from "framer-motion"
+import { PageHeader } from "@/components/ui/page-header"
+import { StaffingCalendar } from "@/features/staff-assignments/components/staffing-calendar"
 import { CalendarRange } from "lucide-react"
+import { SPRING } from "@/lib/framer/framer-utils"
 
 export default function CoordinatorCalendarPage() {
   return (
-    <ComingSoonPlaceholder
-      title="Event calendar"
-      subtitle="All events by date and status"
-      icon={CalendarRange}
-      description="A dedicated month-view calendar for coordinators. In the meantime, the calendar view is available from the Bookings page."
-      plannedFeatures={[
-        "Month view with all confirmed, pending, and cancelled events",
-        "Quick filters by status and event type",
-        "Click-through to booking detail",
-      ]}
-    />
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+      className="flex flex-col gap-6"
+    >
+      <PageHeader
+        title="Event calendar"
+        subtitle="All events by date, color-coded by staffing status"
+        icon={CalendarRange}
+      />
+
+      <StaffingCalendar bookingHref={(bookingId) => `/staff/coordinator/bookings/${bookingId}`} />
+    </motion.div>
   )
 }

@@ -1,5 +1,22 @@
-// app/(pages)/(protected)/staff/admin/bookings/[bookingId]/page.tsx
+// app/(pages)/(protected)/staff/coordinator/bookings/[bookingId]/page.tsx
 "use client"
+
+/**
+ * Coordinator-facing booking detail.
+ *
+ * UPDATED — payment actions restored: "Review deposit" and "Record manual
+ * payment" now link to real coordinator-scoped routes
+ * (/staff/coordinator/payments/[id] and .../manual-payment), which didn't
+ * exist when this page was first built. Coordinators already had this
+ * authority at the API level (requireRole(["ADMIN","COORDINATOR"]) on the
+ * verify/manual-payment routes) — this page is what makes it reachable.
+ *
+ * STILL RESTRICTED — per product decision, coordinators get view +
+ * vendor/staff assignment + payment authority, but NOT booking
+ * status-changing actions:
+ *   NOT ALLOWED — ContractTermsForm, ConfirmBookingDialog, CancelBookingDialog,
+ *                 declining a cancellation request
+ */
 
 import { use } from "react"
 import { useRouter } from "next/navigation"
@@ -7,10 +24,6 @@ import { motion } from "framer-motion"
 import { useBooking, EVENT_TYPE_LABELS } from "@/features/bookings"
 import { useBookingPayments } from "@/features/payments"
 import { BookingStatusBadge } from "@/features/bookings/components/booking-status-badge"
-import { PaymentStatusBadge } from "@/features/payments/components/payment-status-badge"
-import { ConfirmBookingDialog } from "@/features/bookings/components/confirm-booking-dialog"
-import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog"
-import { ContractTermsForm } from "@/features/bookings/components/contract-terms-form"
 import { PaymentSummary } from "@/features/bookings/components/payment-summary"
 import { BookingVendorPanel } from "@/features/vendors/components/booking-vendor-panel"
 import { BookingStaffPanel } from "@/features/staff-assignments/components/booking-staff-panel"
@@ -18,20 +31,11 @@ import { PageHeader } from "@/components/ui/page-header"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel,
-  AlertDialogContent, AlertDialogDescription,
-  AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
-import {
   ArrowLeft, CalendarDays, MapPin, Users, Package,
-  User, CreditCard, ChevronRight, CheckCircle2,
-  Clock, AlertCircle, Phone, Wallet, XCircle,
-  Navigation, ExternalLink, Banknote,
+  User, CreditCard, ChevronRight, CheckCircle2, Clock, AlertCircle,
+  Phone, Wallet, Navigation, ExternalLink, Eye, Banknote,
 } from "lucide-react"
 import { PAYMENT_METHOD_LABELS } from "@/features/payments"
-import { useUpdateBookingStatus } from "@/features/bookings/bookings.hooks"
-import { SPRING } from "@/lib/framer/framer-utils"
 
 interface Props { params: Promise<{ bookingId: string }> }
 
@@ -45,13 +49,12 @@ const fmtDate = (iso: string) =>
     year: "numeric", month: "long", day: "numeric",
   })
 
-export default function AdminBookingDetailPage({ params }: Props) {
+export default function CoordinatorBookingDetailPage({ params }: Props) {
   const { bookingId } = use(params)
   const router = useRouter()
 
   const { data: booking, isLoading, isError } = useBooking(bookingId)
   const { data: payments } = useBookingPayments(bookingId)
-  const { mutate: updateStatus, isPending: statusPending } = useUpdateBookingStatus()
 
   if (isLoading) {
     return (
@@ -71,15 +74,11 @@ export default function AdminBookingDetailPage({ params }: Props) {
   }
 
   const agreedPrice   = Number(booking.agreedPrice)
-  const depositAmount = booking.depositAmount ? Number(booking.depositAmount) : null
-  const termsSet      = !!(booking.paymentPlan && booking.depositAmount)
   const isCancelRequested = booking.status === "CANCELLATION_REQUESTED"
 
-  // Latest verified deposit
   const verifiedDeposit = payments
     ?.filter((p) => p.paymentType === "DEPOSIT" && p.status === "VERIFIED")
     .at(0)
-  // Latest submitted deposit (for review CTA)
   const submittedDeposit = payments
     ?.filter((p) => p.paymentType === "DEPOSIT" && p.status === "SUBMITTED")
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -92,7 +91,7 @@ export default function AdminBookingDetailPage({ params }: Props) {
 
   return (
     <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING}
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}
       className="flex flex-col gap-6"
     >
       <Button variant="ghost" size="sm" onClick={() => router.back()} className="-ml-2 w-fit">
@@ -105,59 +104,35 @@ export default function AdminBookingDetailPage({ params }: Props) {
         actions={<BookingStatusBadge status={booking.status} />}
       />
 
-      {/* Cancellation request alert */}
+      {/* Scope notice — booking status/contract terms remain admin-only */}
+      <div className="flex items-center gap-2 rounded-lg border border-border bg-background-blush px-3 py-2">
+        <Eye size={13} className="text-text-muted shrink-0" aria-hidden="true" />
+        <p className="text-[11px] text-text-muted">
+          Contract terms and booking status (confirm/cancel) are managed by an administrator.
+          You can assign vendors and staff, and verify or record payments below.
+        </p>
+      </div>
+
       {isCancelRequested && (
         <div className="flex items-start gap-3 rounded-xl border border-orange-200 bg-orange-50 p-5">
           <AlertCircle size={18} className="text-orange-600 shrink-0 mt-0.5" aria-hidden="true" />
-          <div className="flex-1 min-w-0">
+          <div>
             <p className="text-[14px] font-semibold text-orange-800">Client requested cancellation</p>
             <p className="text-[13px] text-orange-700 mt-1">{booking.cancellationRequestReason}</p>
             {booking.cancellationRequestedAt && (
               <p className="text-[11px] text-orange-500 mt-1">
-                Requested {fmtDate(booking.cancellationRequestedAt)}
+                Requested {fmtDate(booking.cancellationRequestedAt)} — an administrator needs to act on this.
               </p>
             )}
-          </div>
-          <div className="flex flex-col gap-2 shrink-0">
-            <CancelBookingDialog bookingId={booking.id} onSuccess={() => router.back()} />
-            <AlertDialog>
-              <AlertDialogTrigger render={
-                <Button variant="outline" size="sm">
-                  <XCircle size={13} aria-hidden="true" /> Decline
-                </Button>
-              }>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Decline cancellation request?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    The booking will be restored to Confirmed status.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Go back</AlertDialogCancel>
-                  <AlertDialogAction
-                    disabled={statusPending}
-                    onClick={() => updateStatus(
-                      { id: bookingId, input: { status: "CONFIRMED" } as any },
-                      { onSuccess: () => router.refresh() },
-                    )}
-                  >
-                    {statusPending ? "Processing…" : "Decline & keep confirmed"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
           </div>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_340px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_320px]">
 
         {/* ── Left column ── */}
         <div className="flex flex-col gap-5">
 
-          {/* Booking details */}
           <div className="rounded-xl border border-border bg-white p-5 space-y-4">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
               Booking details
@@ -181,7 +156,6 @@ export default function AdminBookingDetailPage({ params }: Props) {
                 </div>
               ))}
 
-              {/* Venue with map */}
               <div className="flex items-start gap-3 sm:col-span-2">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
                   <MapPin size={14} className="text-primary" aria-hidden="true" />
@@ -202,7 +176,6 @@ export default function AdminBookingDetailPage({ params }: Props) {
                 </div>
               </div>
 
-              {/* Client phone — tappable */}
               <div className="flex items-start gap-3">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary-soft">
                   <Phone size={14} className="text-primary" aria-hidden="true" />
@@ -219,7 +192,6 @@ export default function AdminBookingDetailPage({ params }: Props) {
               </div>
             </div>
 
-            {/* Price */}
             <div className="border-t border-border pt-3 space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -240,9 +212,13 @@ export default function AdminBookingDetailPage({ params }: Props) {
                   </span>
                 </div>
               )}
+              {!booking.paymentPlan && (
+                <p className="text-[11px] text-text-muted italic">
+                  Contract terms not yet set — an administrator will discuss this with the client.
+                </p>
+              )}
             </div>
 
-            {/* Map preview */}
             {hasPin && process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY && (
               <div className="overflow-hidden rounded-lg border border-border">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -255,7 +231,6 @@ export default function AdminBookingDetailPage({ params }: Props) {
               </div>
             )}
 
-            {/* Customizations */}
             {booking.packageCustomizations?.length > 0 && (
               <div>
                 <p className="text-[11px] text-text-muted mb-1.5">Customizations</p>
@@ -267,7 +242,6 @@ export default function AdminBookingDetailPage({ params }: Props) {
               </div>
             )}
 
-            {/* Staff note */}
             {booking.staffNote && (
               <div className="rounded-lg bg-background-blush p-3">
                 <p className="text-[11px] text-text-muted mb-0.5">Staff note (internal)</p>
@@ -293,29 +267,14 @@ export default function AdminBookingDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* ── Vendor coordination panel (FR-19 / Module 4) ── */}
           <BookingVendorPanel booking={booking} />
-
-          {/* ── Staff scheduling panel (Module 5) ── */}
           <BookingStaffPanel bookingId={booking.id} />
-
-          {/* ── Payment summary + transaction history (staff variant) ── */}
-          <PaymentSummary
-            booking={booking}
-            variant="staff"
-            onViewPayment={(id) => router.push(`/staff/admin/payments/${id}`)}
-          />
+          <PaymentSummary booking={booking} variant="staff" onViewPayment={(id) => router.push(`/staff/coordinator/payments/${id}`)} />
         </div>
 
-        {/* ── Right column: actions ── */}
+        {/* ── Right column — now includes real payment actions ── */}
         <div className="flex flex-col gap-4">
 
-          {/* Contract terms form — PENDING only */}
-          {booking.status === "PENDING" && (
-            <ContractTermsForm booking={booking} onSuccess={() => router.refresh()} />
-          )}
-
-          {/* Deposit status */}
           <div className="rounded-xl border border-border bg-white p-4 space-y-3">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
               Deposit status
@@ -323,9 +282,7 @@ export default function AdminBookingDetailPage({ params }: Props) {
             {!verifiedDeposit && !submittedDeposit ? (
               <div className="flex items-center gap-2 text-[13px] text-text-muted">
                 <Clock size={14} aria-hidden="true" />
-                {termsSet
-                  ? `Awaiting client — ${depositAmount ? fmt(depositAmount) : "amount set"}`
-                  : "Set contract terms first"}
+                {booking.paymentPlan ? "Awaiting client payment" : "Contract terms not yet set"}
               </div>
             ) : (
               <div className="space-y-2">
@@ -335,7 +292,7 @@ export default function AdminBookingDetailPage({ params }: Props) {
                       <span className="text-[13px] font-medium text-text-main">
                         {fmt(Number(verifiedDeposit.amount))}
                       </span>
-                      <PaymentStatusBadge status="VERIFIED" />
+                      <Badge variant="success">Verified</Badge>
                     </div>
                     <p className="text-[12px] text-text-muted">
                       {PAYMENT_METHOD_LABELS[verifiedDeposit.method]}
@@ -352,15 +309,16 @@ export default function AdminBookingDetailPage({ params }: Props) {
                       <span className="text-[13px] font-medium text-text-main">
                         {fmt(Number(submittedDeposit.amount))}
                       </span>
-                      <PaymentStatusBadge status="SUBMITTED" />
+                      <Badge variant="warning">Submitted</Badge>
                     </div>
                     <p className="text-[12px] text-text-muted">
                       {PAYMENT_METHOD_LABELS[submittedDeposit.method]}
                       {submittedDeposit.referenceNumber && ` · ${submittedDeposit.referenceNumber}`}
                     </p>
+                    {/* Now a real, working destination */}
                     <Button
                       size="sm" className="w-full mt-1"
-                      onClick={() => router.push(`/staff/admin/payments/${submittedDeposit.id}`)}
+                      onClick={() => router.push(`/staff/coordinator/payments/${submittedDeposit.id}`)}
                     >
                       Review deposit <ChevronRight size={13} aria-hidden="true" />
                     </Button>
@@ -370,10 +328,10 @@ export default function AdminBookingDetailPage({ params }: Props) {
             )}
           </div>
 
-          {/* Manual payment button */}
+          {/* Manual payment button — now a real destination */}
           {(booking.status === "PENDING" || booking.status === "CONFIRMED") && (
             <button
-              onClick={() => router.push(`/staff/admin/bookings/${bookingId}/manual-payment`)}
+              onClick={() => router.push(`/staff/coordinator/bookings/${bookingId}/manual-payment`)}
               className="flex items-center justify-between rounded-xl border border-border bg-white p-4 hover:border-border-strong hover:bg-primary-soft/20 transition-colors text-left w-full"
             >
               <div className="flex items-center gap-3">
@@ -389,59 +347,17 @@ export default function AdminBookingDetailPage({ params }: Props) {
             </button>
           )}
 
-          {/* Installments CTA — CONFIRMED + INSTALLMENT plan */}
-          {booking.status === "CONFIRMED" && booking.paymentPlan === "INSTALLMENT" && (
-            <button
-              onClick={() => router.push(`/staff/admin/bookings/${bookingId}/installments`)}
-              className="flex items-center justify-between rounded-xl border border-border bg-white p-4 hover:border-border-strong hover:bg-primary-soft/20 transition-colors text-left w-full"
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-primary-soft flex items-center justify-center">
-                  <CreditCard size={14} className="text-primary" aria-hidden="true" />
-                </div>
-                <div>
-                  <p className="text-[13px] font-semibold text-text-main">Installment schedule</p>
-                  <p className="text-[11px] text-text-muted">Set or update payment schedule</p>
-                </div>
-              </div>
-              <ChevronRight size={15} className="text-text-muted" aria-hidden="true" />
-            </button>
-          )}
-
-          {/* Full payment info — CONFIRMED + FULL plan */}
-          {booking.status === "CONFIRMED" && booking.paymentPlan === "FULL" && (
+          {booking.paymentPlan === "FULL" && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-1">
               <div className="flex items-center gap-2">
                 <Wallet size={14} className="text-emerald-600" aria-hidden="true" />
                 <p className="text-[12px] font-semibold text-emerald-700">Full payment plan</p>
               </div>
-              {depositAmount && (
-                <p className="text-[12px] text-emerald-600">
-                  Balance: {fmt(agreedPrice - (verifiedDeposit ? Number(verifiedDeposit.amount) : 0))}
-                </p>
-              )}
               {booking.fullPaymentDueDate && (
                 <p className="text-[11px] text-emerald-600">
                   Due by {fmtDate(booking.fullPaymentDueDate)}
                 </p>
               )}
-            </div>
-          )}
-
-          {/* Booking actions — PENDING */}
-          {booking.status === "PENDING" && (
-            <div className="rounded-xl border border-border bg-white p-4 space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-text-muted">
-                Actions
-              </p>
-              <div className="flex flex-col gap-2">
-                <ConfirmBookingDialog
-                  bookingId={booking.id}
-                  eventDate={booking.eventDate}
-                  onSuccess={() => router.back()}
-                />
-                <CancelBookingDialog bookingId={booking.id} onSuccess={() => router.back()} />
-              </div>
             </div>
           )}
         </div>
