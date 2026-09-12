@@ -1,390 +1,612 @@
-# Fab Memories Events — Real-Time Transaction Monitoring System
+# Fab Memories Events — System README
 
-A web-based event planning and real-time transaction monitoring system for Fab Memories Events — a wedding and debut coordination business. The system replaces all manual operations with a centralized platform covering event booking, payment verification, vendor coordination, staff scheduling, document generation, and a comprehensive audit trail with real-time decision support reporting.
+> **Project:** Fab Memories Events — Event Planning & Management System  
+> **Stack:** Next.js 16 · React 19 · Prisma 7 · PostgreSQL · Clerk · Supabase Storage · TanStack Query · ShadcnUI · Tailwind CSS v4  
+> **Last Updated:** September 12, 2026
 
 ---
 
-## Tech Stack
+## Table of Contents
 
-| Tool | Purpose |
+1. [Project Overview](#1-project-overview)
+2. [Architecture Summary](#2-architecture-summary)
+3. [Tech Stack](#3-tech-stack)
+4. [Roles & Access Control](#4-roles--access-control)
+5. [Module Breakdown](#5-module-breakdown)
+6. [Database Schema](#6-database-schema)
+7. [Project Structure](#7-project-structure)
+8. [Environment Variables](#8-environment-variables)
+9. [Getting Started](#9-getting-started)
+10. [Seed Data](#10-seed-data)
+11. [API Reference](#11-api-reference)
+12. [Key Design Decisions](#12-key-design-decisions)
+
+---
+
+## 1. Project Overview
+
+**Fab Memories Events** is a full-stack web application for a professional event planning company based in the Philippines. The system digitizes the entire client-to-event lifecycle — from browsing packages and submitting a booking request, to payment verification, staff scheduling, vendor coordination, and tamper-proof audit logging.
+
+### Business Goals
+
+- Replace manual (WhatsApp/spreadsheet) booking and payment tracking with a structured, role-aware platform.
+- Give clients a self-service portal to track their event, submit payments, and view documents.
+- Give staff (Admin & Coordinator) a centralized dashboard to manage bookings, verify payments, assign coordinators, and coordinate vendors.
+- Produce a tamper-evident audit trail for all critical operations to satisfy compliance and accountability requirements.
+
+---
+
+## 2. Architecture Summary
+
+```
+┌─────────────────────────────────────────────┐
+│               Client Browser                │
+│  Next.js App Router (React 19, RSC + Client)│
+└──────────────┬──────────────────────────────┘
+               │ HTTPS
+┌──────────────▼──────────────────────────────┐
+│         Next.js API Routes (/app/api)        │
+│  Auth: Clerk JWT middleware (requireRole)    │
+│  ORM:  Prisma 7 + pg adapter (PostgreSQL)   │
+│  Audit: SHA-256 hash chain (lib/audit)      │
+└───────┬─────────────────────────┬───────────┘
+        │                         │
+┌───────▼────────┐   ┌────────────▼──────────┐
+│  PostgreSQL DB  │   │  Supabase Storage     │
+│  (Prisma ORM)   │   │  (payment proof imgs) │
+└────────────────┘   └───────────────────────┘
+        │
+┌───────▼────────┐
+│  Clerk Auth     │
+│  (user mgmt +   │
+│   role metadata)│
+└────────────────┘
+```
+
+**Rendering Strategy:**
+- **Public pages** (landing, packages, vendor brief): Server Components with `cache: "no-store"` where data freshness is critical.
+- **Protected dashboards**: Client Components using TanStack Query (`useQuery`/`useMutation`) with Axios for data fetching and optimistic updates.
+- **API Routes**: All business logic is encapsulated in `features/<module>/<module>.query.ts`; routes are thin orchestration layers.
+
+---
+
+## 3. Tech Stack
+
+| Layer | Technology |
 |---|---|
-| Next.js 14+ (App Router) | Framework — routing, server components, API routes |
-| TypeScript | Language — strict mode |
-| Prisma | ORM — database access and schema management |
-| PostgreSQL (Supabase) | Database |
-| Supabase Storage | File storage — payment proof uploads and generated documents |
-| Clerk | Authentication — email/password + OTP-based MFA; |
-| TanStack React Query | Server state management, data fetching, mutations, cache invalidation |
-| Axios | HTTP client — configured instance at `lib/axios.ts` |
-| Zod | Schema validation — same schema used on client forms and server API routes |
-| shadcn/ui | Component library — never edit `components/ui/` manually |
-| Tailwind CSS | Styling |
-| Resend/Gmail API | Transactional email — OTP delivery, document notifications, receipts |
-| react-pdf / Puppeteer | PDF generation — contracts, invoices, receipts, event checklists |
-| Vercel | Deployment |
+| Framework | Next.js 16 (App Router) |
+| UI Library | React 19 |
+| Component Library | ShadcnUI + Tailwind CSS v4 |
+| Animations | Framer Motion 13 |
+| State / Data Fetching | TanStack React Query v5 + Axios |
+| Forms | React Hook Form + Zod v4 |
+| Authentication | Clerk (`@clerk/nextjs` v7) |
+| ORM | Prisma 7 (with `@prisma/adapter-pg`) |
+| Database | PostgreSQL (via Supabase or direct pg) |
+| File Storage | Supabase Storage |
+| Audit Trail | Custom SHA-256 hash chain (`lib/audit/`) |
+| Email | Nodemailer (configured, not yet wired to triggers) |
 
 ---
 
-## Getting Started
+## 4. Roles & Access Control
+
+The system uses a 4-role RBAC model. Roles are stored in both Clerk's `publicMetadata` and the `User.role` field in PostgreSQL, kept in sync via Clerk webhooks.
+
+| Role | Route Prefix | Description |
+|---|---|---|
+| `CLIENT` | `/portal/*` | End-user client. Books events, views their booking, submits payments. |
+| `COORDINATOR` | `/staff/coordinator/*` | Event coordinator. Views assigned bookings, manages schedule, records manual payments. |
+| `ADMIN` | `/staff/admin/*` | Full system access. Confirms bookings, verifies payments, manages staff, vendors, packages, reports, and audit logs. |
+| `VENDOR` | `/staff/vendor/*` | External vendor. Views their quotation history and assigned event briefs. |
+
+Route protection is enforced at two layers:
+1. **Next.js Middleware** (`lib/rbac.ts`) — redirects unauthorized routes before the page renders.
+2. **API routes** (`lib/clerk/auth.ts` → `requireRole([...])`) — returns `403 Forbidden` if the calling user's role is not in the allowed list.
+
+---
+
+## 5. Module Breakdown
+
+The system is organized into **7 feature modules**, each in `features/<module>/`.
+
+---
+
+### Module 1 — Authentication & User Management (`features/auth/`)
+
+**What it does:**
+- Clerk-powered sign-in and sign-up for clients (`/sign-in`, `/sign-up`).
+- Separate staff login portal at `/staff-login` (username/password, no email sign-up).
+- Clerk webhook (`/api/webhooks/clerk`) syncs user creation/updates into the PostgreSQL `User` table.
+- Server Action `syncUser` is called on every protected page load to keep the DB user current.
+- Role-based redirect after login (`lib/rbac.ts → getDefaultRedirect`).
+- Admin can create, deactivate, and manage staff accounts at `/staff/admin/staff` via `/api/staff-accounts`.
+
+**Key files:**
+- `lib/clerk/auth.ts` — `requireRole`, `getCurrentDbUser`
+- `lib/rbac.ts` — route access map, `canAccess`, `getDefaultRedirect`
+- `app/api/webhooks/clerk/route.ts` — Clerk webhook handler
+- `lib/sync-user.ts` — DB upsert on auth
+
+---
+
+### Module 2 — Package Management (`features/packages/`)
+
+**What it does:**
+- Admin creates and manages event packages (Wedding, Debut, Corporate, Birthday, Other).
+- Each package has a base `price` (metro) and optional `priceProvincial`.
+- Packages are browsable publicly at `/packages` (unauthenticated).
+- Clients select a package when creating a booking; `agreedPrice` is resolved server-side to prevent price manipulation.
+- Admin can toggle package `isActive` status.
+
+**Key API routes:**
+- `GET /api/public/packages` — Public package listing (no auth).
+- `GET /api/packages` — Admin/staff package listing.
+- `POST /api/packages` — Create package (ADMIN only).
+- `PATCH /api/packages/[packageId]` — Update package (ADMIN only).
+- `DELETE /api/packages/[packageId]` — Soft/hard delete (ADMIN only).
+
+---
+
+### Module 3 — Booking Management (`features/bookings/`)
+
+**What it does:**
+- Clients submit booking requests specifying event type, date, venue (with Google Maps picker), guest count, package, and desired vendor categories.
+- Date availability is enforced: only one `CONFIRMED` booking per calendar day.
+- Admin confirms bookings by setting contract terms (payment plan, deposit amount, due dates).
+- Full booking lifecycle: `PENDING → CONFIRMED → (CANCELLATION_REQUESTED →) CANCELLED`.
+- Clients can request cancellation; admin approves or declines.
+- Admin can withdraw (cancel) a pending booking directly.
+- Coordinators have a read-only view of their assigned bookings.
+
+**Key API routes:**
+- `GET /api/bookings` — All bookings (ADMIN/COORDINATOR) or own bookings (CLIENT).
+- `POST /api/bookings` — Create booking (CLIENT only).
+- `GET /api/bookings/[bookingId]` — Single booking with relations.
+- `PATCH /api/bookings/[bookingId]` — Update booking (ADMIN).
+- `POST /api/bookings/[bookingId]/contract-terms` — Set payment plan and due dates (ADMIN).
+- `POST /api/bookings/[bookingId]/cancel-request` — Client requests cancellation.
+- `GET /api/bookings/availability` — Date availability check.
+
+**Booking statuses:**
+
+```
+PENDING ──► CONFIRMED ──► CANCELLATION_REQUESTED ──► CANCELLED
+    └─────────────────────────────────────────────► CANCELLED
+```
+
+---
+
+### Module 4 — Payment Management (`features/payments/` + `features/installments/`)
+
+**What it does:**
+- Clients upload payment proof (image via Supabase Storage) and submit payments.
+- Supports DEPOSIT, INSTALLMENT, and FULL_BALANCE payment types.
+- Two payment plans: `FULL` (deposit + full balance) and `INSTALLMENT` (deposit + N installment tranches).
+- Admin sets an installment schedule (amounts + due dates) per booking.
+- Admin/Coordinator verifies or flags submitted payments.
+- Manual cash payments can be recorded by staff directly (`POST /api/payments/manual`).
+- Payment proof images are served via signed Supabase Storage URLs (time-limited, not public).
+
+**Payment flow:**
+```
+Client uploads proof → SUBMITTED → Admin verifies → VERIFIED
+                                 → Admin flags   → FLAGGED (client can resubmit)
+```
+
+**Key API routes:**
+- `GET /api/payments` — List payments (filterable by status).
+- `POST /api/payments` — Submit payment with proof upload.
+- `POST /api/payments/manual` — Record cash/offline payment (ADMIN/COORDINATOR).
+- `POST /api/payments/[paymentId]/verify` — Verify or flag a payment (ADMIN/COORDINATOR).
+- `GET/POST /api/bookings/[bookingId]/installments` — Installment schedule CRUD.
+
+---
+
+### Module 5 — Staff Assignment & Scheduling (`features/staff-assignments/`)
+
+**What it does:**
+- Admin assigns coordinators to bookings with task roles (Lead Coordinator, Guest Registration, Vendor Liaison, Logistics, Program Flow, Other).
+- Each assignment can be marked as `isBackup`.
+- FR-37 staffing recommendation: guest count determines the recommended coordinator range (e.g., 51–150 guests → 3–5 coordinators).
+- FR-40 conflict detection: warns if a coordinator is already assigned to another event on the same date.
+- Coordinator dashboard shows their upcoming schedule and assignment list.
+- Admin staffing calendar shows all events per month with compliance status.
+- Coordinator roster shows each coordinator's upcoming assignment count and next event.
+
+**Staffing recommendations (FR-37):**
+| Guests | Min | Max |
+|---|---|---|
+| 1–50 | 1 | 2 |
+| 51–150 | 3 | 5 |
+| 151–300 | 5 | 8 |
+| 301–500 | 7 | 10 |
+| 500+ | 10 | 15 |
+
+**Key API routes:**
+- `GET /api/bookings/[bookingId]/staff` — Get assignments for a booking.
+- `POST /api/bookings/[bookingId]/staff` — Assign coordinator (ADMIN).
+- `DELETE /api/bookings/[bookingId]/staff/[assignmentId]` — Remove assignment (ADMIN).
+- `GET /api/staff` — Full coordinator list with upcoming counts.
+- `GET /api/staff/calendar` — Month-view calendar entries with compliance.
+- `GET /api/staff/my-schedule` — Coordinator's own assignment list.
+- `GET /api/staff/my-dashboard` — Coordinator dashboard summary.
+
+---
+
+### Module 6 — Vendor Management (`features/vendors/`)
+
+**What it does:**
+- Admin maintains a vendor directory with categories (Catering, Photography, Videography, Florals, Decoration, Sounds & Lighting, Venue, Hair & Makeup, Entertainment, Transportation, Other).
+- Vendors are assigned to bookings per category with contact tracking (`contactedAt`, `confirmedAt`).
+- When clients create a booking, they select desired vendor categories; admin matches vendors from the directory.
+- Vendor coverage gap detection: dashboard highlights bookings where a requested category has no confirmed vendor.
+- **Vendor Brief** (`/vendor-brief/[bookingId]?view=[vendorId]`): a public, shareable, read-only event brief page for external vendors. Shows event logistics (date, venue, guest count, package, notes) and the vendor's specific assignment. No client PII or pricing is exposed.
+- Admin can copy the vendor brief URL directly from the booking detail page.
+
+**Key API routes:**
+- `GET/POST /api/vendors` — Vendor directory CRUD (ADMIN).
+- `GET/PATCH/DELETE /api/vendors/[vendorId]` — Single vendor CRUD.
+- `GET/POST /api/bookings/[bookingId]/vendors` — Booking vendor assignments.
+- `PATCH/DELETE /api/bookings/[bookingId]/vendors/[vendorId]` — Update/remove assignment.
+- `GET /api/vendor-brief/[bookingId]` — Public brief data (no auth required).
+
+---
+
+### Module 7 — Audit Trail & Reports (`features/audit/` + `features/reports/`)
+
+**What it does:**
+
+**Audit Trail:**
+- Every significant action (login/logout, booking CRUD, payment verify, vendor assign, staff assign, report access) is written to an append-only `AuditLog` table.
+- The audit log implements a **SHA-256 hash chain**: each entry's hash is computed from its own fields plus the previous entry's hash, forming a tamper-evident linked chain.
+- `AuditChainState` (a singleton row) is locked with `SELECT ... FOR UPDATE` inside every `logAction()` transaction to prevent concurrent writes from forking the chain.
+- Admin can run a full **chain integrity verification** from the UI — every entry's stored hash is recomputed and cross-checked with the chain links.
+- Audit logs are filterable by date range, user, module, action, and status.
+- CSV export of audit logs.
+
+**Admin Dashboard / Reports:**
+- Real-time operational dashboard at `/staff/admin` showing: active bookings, pending requests, payments to verify, upcoming events this week.
+- Compliance widgets: understaffed events (below FR-37 minimum) and vendor coverage gaps.
+- Merged "Needs Attention" action list (unset contract terms, payments awaiting verification, pending cancellation requests).
+- "This week's events" timeline.
+
+**Key API routes:**
+- `GET /api/audit` — Paginated, filterable audit log (ADMIN).
+- `GET /api/audit/stats` — Aggregate audit stats (total entries, failures, most active module).
+- `GET /api/audit/verify` — Full chain integrity check (ADMIN).
+- `GET /api/reports/dashboard` — Admin dashboard summary (ADMIN).
+
+---
+
+## 6. Database Schema
+
+### Models
+
+| Model | Description |
+|---|---|
+| `User` | Authenticated users; synced from Clerk. Roles: CLIENT, ADMIN, COORDINATOR, VENDOR. |
+| `Package` | Event packages with metro/provincial pricing and inclusions. |
+| `Booking` | Core entity. Links client + package + payment plan + contract terms. |
+| `Payment` | Individual payment submissions (deposit, installment, full balance). |
+| `Installment` | Installment schedule rows linked to a booking. |
+| `Vendor` | Vendor directory entries with category and contact info. |
+| `BookingVendor` | Join table linking vendors to bookings, with contact/confirmation tracking. |
+| `StaffAssignment` | Coordinator assignments per booking with task role. |
+| `AuditLog` | Append-only tamper-evident audit entries with hash chain. |
+| `AuditChainState` | Singleton row tracking the current hash chain tip (used for serialized writes). |
+
+### Key Enums
+
+- `Role`: CLIENT, ADMIN, COORDINATOR, VENDOR
+- `BookingStatus`: PENDING, CONFIRMED, CANCELLED, CANCELLATION_REQUESTED
+- `EventType`: WEDDING, DEBUT, CORPORATE, BIRTHDAY, OTHER
+- `PaymentType`: DEPOSIT, INSTALLMENT, FULL_BALANCE
+- `PaymentStatus`: PENDING, SUBMITTED, VERIFIED, FLAGGED
+- `PaymentPlan`: FULL, INSTALLMENT
+- `VendorCategory`: CATERING, PHOTOGRAPHY, VIDEOGRAPHY, FLORALS, DECORATION, SOUNDS_LIGHTING, VENUE, HAIR_MAKEUP, ENTERTAINMENT, TRANSPORTATION, OTHER
+- `StaffTaskRole`: LEAD_COORDINATOR, GUEST_REGISTRATION, VENDOR_LIAISON, LOGISTICS, PROGRAM_FLOW, OTHER
+- `AuditAction`: LOGIN, LOGOUT, CREATE, UPDATE, DELETE, VERIFY, CONFIRM, DECLINE, EXPORT, VIEW
+- `AuditModule`: AUTH, USER_MANAGEMENT, BOOKING, PAYMENT, VENDOR, STAFF_SCHEDULE, DOCUMENT, REPORT
+
+### Migration History
+
+| Migration | Date | Description |
+|---|---|---|
+| `20260802_user_clerk` | Aug 2 | Initial User model + Clerk sync |
+| `20260802_user_session_tracking` | Aug 2 | Session tracking fields |
+| `20260813_user_audit_schema` | Aug 13 | AuditLog + AuditAction/Module enums |
+| `20260824_add_bookings_packages` | Aug 24 | Package + Booking models |
+| `20260825_add_payments_installments` | Aug 25 | Payment + Installment models (3 iterations) |
+| `20260825_booking_polish` | Aug 25 | Booking status and relation refinements |
+| `20260826_add_agreed_price` | Aug 26 | `Booking.agreedPrice` server-resolved field |
+| `20260829_add_contract_terms_phone` | Aug 29 | Contract terms + clientPhone on booking |
+| `20260829_add_full_balance_payment_due` | Aug 29 | `fullPaymentDueDate` on booking |
+| `20260903_add_vendor_module` | Sep 3 | Vendor + BookingVendor models |
+| `20260904_staff_coordinator` | Sep 4 | StaffAssignment model + StaffTaskRole enum |
+| `20260912_audit_trails` | Sep 12 | Hash chain fields (sequence, hash, previousHash) + AuditChainState |
+| `20260912_revert_audit_metadata_to_jsonb` | Sep 12 | Force `AuditLog.metadata` to plain `json` for hash stability |
+
+---
+
+## 7. Project Structure
+
+```
+fabmemories/
+├── app/
+│   ├── (pages)/
+│   │   ├── (protected)/
+│   │   │   ├── portal/           # Client portal pages
+│   │   │   │   ├── page.tsx      # Dashboard
+│   │   │   │   ├── bookings/     # Booking list + detail + edit + payment
+│   │   │   │   ├── payments/     # Payment history
+│   │   │   │   └── documents/    # (placeholder)
+│   │   │   └── staff/
+│   │   │       ├── admin/        # Admin pages (dashboard, bookings, payments,
+│   │   │       │                 #   packages, vendors, staff, reports, audit)
+│   │   │       ├── coordinator/  # Coordinator pages (bookings, calendar,
+│   │   │       │                 #   payments, staff roster)
+│   │   │       └── vendor/       # Vendor pages (quotations, history)
+│   │   └── (public)/
+│   │       ├── sign-in/          # Client auth (Clerk)
+│   │       ├── sign-up/          # Client registration
+│   │       ├── staff-login/      # Staff auth (username/password)
+│   │       ├── packages/         # Public package browser
+│   │       ├── vendor-brief/     # Public vendor event brief
+│   │       ├── forgot-password/
+│   │       ├── privacy/
+│   │       ├── terms/
+│   │       └── support/
+│   ├── api/
+│   │   ├── bookings/             # Booking CRUD + sub-resources
+│   │   ├── payments/             # Payment CRUD + verify + manual
+│   │   ├── packages/             # Package CRUD
+│   │   ├── vendors/              # Vendor directory CRUD
+│   │   ├── staff/                # Staff list + calendar + dashboard
+│   │   ├── staff-accounts/       # Staff account management
+│   │   ├── audit/                # Audit log + stats + verify
+│   │   ├── reports/              # Dashboard summary
+│   │   ├── vendor-brief/         # Public vendor brief data
+│   │   ├── public/               # Unauthenticated endpoints
+│   │   └── webhooks/clerk/       # Clerk user sync webhook
+│   ├── generated/prisma/         # Prisma-generated client
+│   ├── layout.tsx                # Root layout (Clerk + Query providers)
+│   └── globals.css
+│
+├── features/                     # Feature-sliced modules
+│   ├── auth/                     # Auth shell + hooks
+│   ├── bookings/                 # Booking types, API, hooks, components
+│   ├── installments/             # Installment schedule components + hooks
+│   ├── packages/                 # Package types, API, hooks, components
+│   ├── payments/                 # Payment types, API, hooks, components
+│   ├── reports/                  # Admin dashboard hooks + components
+│   ├── staff-assignments/        # Staff assignment types, API, hooks, components
+│   ├── vendors/                  # Vendor types, API, hooks, components
+│   ├── audit/                    # Audit log types, API, hooks, components
+│   ├── landing/                  # Landing page components
+│   └── layouts/                  # Sidebar shell, nav, mobile tab bar
+│
+├── lib/
+│   ├── audit/
+│   │   ├── chain.ts              # SHA-256 hash computation + canonical stringify
+│   │   └── log.ts                # logAction() — transactional, serialized writes
+│   ├── clerk/
+│   │   ├── auth.ts               # requireRole, getCurrentDbUser
+│   │   ├── client.ts             # Clerk browser client
+│   │   └── types.ts
+│   ├── supabase/
+│   │   ├── client.ts             # Browser Supabase client
+│   │   └── server.ts             # Server Supabase client
+│   ├── prisma.ts                 # Singleton Prisma client
+│   ├── rbac.ts                   # Route access map + canAccess
+│   ├── roles.ts                  # Role utilities
+│   ├── axios.ts                  # Configured Axios instance
+│   ├── query-client.ts           # TanStack Query client config
+│   ├── storage.ts                # Supabase storage helpers
+│   ├── csv-export.ts             # CSV generation utility
+│   └── utils.ts                  # cn() + misc helpers
+│
+├── components/
+│   └── ui/                       # ShadcnUI components + custom atoms
+│
+├── prisma/
+│   ├── schema.prisma             # Full data model
+│   ├── seed.ts                   # Seed script (Clerk + DB)
+│   └── migrations/               # Prisma migration history
+│
+├── providers/
+│   ├── query-provider.tsx        # TanStack Query provider wrapper
+│   └── theme-provider.tsx        # next-themes provider
+│
+└── types/
+    └── globals.d.ts              # Global type augmentations
+```
+
+---
+
+## 8. Environment Variables
+
+```env
+# PostgreSQL
+DATABASE_URL=postgresql://...
+
+# Clerk Authentication
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_...
+CLERK_SECRET_KEY=sk_...
+CLERK_WEBHOOK_SECRET=whsec_...
+
+# Clerk redirect paths
+NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in
+NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up
+
+# Supabase (file storage)
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
+SUPABASE_SERVICE_ROLE_KEY=eyJ...
+
+# App URL (used in vendor brief absolute URL generation)
+NEXT_PUBLIC_APP_URL=https://your-domain.com
+
+# Seed credentials (optional overrides)
+SEED_ADMIN_USERNAME=admin
+SEED_ADMIN_PASSWORD=FabMemories123!
+SEED_ADMIN_EMAIL=admin@example.com
+```
+
+---
+
+## 9. Getting Started
 
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Copy environment variables and fill in your values
-cp .env.example .env.local
+# 2. Configure environment variables (copy and fill .env)
+cp .env.example .env
 
-# Generate the Prisma client
+# 3. Push schema and generate Prisma client
+npx prisma migrate deploy
 npx prisma generate
 
-# Push the schema to your database (development)
-npx prisma db push
+# 4. Run seed (creates Clerk users + DB records)
+npx tsx prisma/seed.ts
 
-# Or run migrations (production)
-npx prisma migrate deploy
-
-# Start the dev server
+# 5. Start development server
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
-
----
-
-## Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in all values:
-
-```env
-# Database
-DATABASE_URL=
-DIRECT_URL=
-
-# Supabase
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-SUPABASE_STORAGE_BUCKET_PAYMENTS=payment-proofs
-SUPABASE_STORAGE_BUCKET_DOCUMENTS=event-documents
-
-# JWT
-JWT_SECRET=
-JWT_REFRESH_SECRET=
-OTP_SECRET=
-
-# Email
-RESEND_API_KEY=
-EMAIL_FROM=no-reply@fabmemories.com
-
-# App
-NEXT_PUBLIC_APP_URL=http://localhost:3000
-```
-
----
-
-## Scripts
-
-### `create-feature`
-
-Scaffolds a new feature folder with all standard files pre-wired.
-
-```bash
-npm run create-feature -- --name <feature-name>
-```
-
-**Example:**
-```bash
-npm run create-feature -- --name bookings
-```
-
-**Output:**
-```
-features/bookings/
-├── components/        ← add UI components here
-├── hooks/
-│   └── use-bookings.ts
-├── services/
-│   └── bookings.service.ts
-├── schemas/
-│   └── bookings.schema.ts
-├── types/
-│   └── bookings.types.ts
-└── index.ts           ← uncomment exports as you build
-```
-
-All exports in `index.ts` start commented out. Uncomment them as you implement each piece.
-
-**Setup:** `create-feature.mjs` lives in `scripts/` at the project root. The `package.json` entry:
-
+**Available scripts:**
 ```json
-"scripts": {
-  "create-feature": "node scripts/create-feature.mjs",
-  "dev": "next dev",
-  "build": "next build",
-  "start": "next start",
-  "test": "vitest",
-  "test:e2e": "playwright test",
-  "prisma:generate": "prisma generate",
-  "prisma:push": "prisma db push",
-  "prisma:studio": "prisma studio"
+{
+  "dev":            "next dev",
+  "build":          "prisma generate && next build",
+  "start":          "next start",
+  "typecheck":      "tsc --noEmit",
+  "format":         "prettier --write \"**/*.{ts,tsx}\"",
+  "create-feature": "node scripts/create-feature.mjs"
 }
 ```
 
 ---
 
-## Folder Structure
+## 10. Seed Data
 
-```
-fab-memories/
-├── app/
-│   ├── (public)/
-│   │   └── login/
-│   ├── (authenticated)/
-│   │   ├── dashboard/
-│   │   ├── bookings/
-│   │   ├── calendar/
-│   │   ├── packages/
-│   │   ├── payments/
-│   │   ├── vendors/
-│   │   ├── staff/
-│   │   ├── documents/
-│   │   ├── audit/
-│   │   ├── reports/
-│   │   ├── portal/
-│   │   ├── vendor-portal/
-│   │   └── settings/
-│   ├── api/
-│   │   ├── auth/
-│   │   ├── users/
-│   │   ├── bookings/
-│   │   ├── packages/
-│   │   ├── payments/
-│   │   ├── vendors/
-│   │   ├── staff/
-│   │   ├── documents/
-│   │   ├── audit/
-│   │   └── reports/
-│   └── generated/
-│       └── prisma/          ← never edit manually
-├── features/
-│   ├── auth/
-│   ├── bookings/
-│   ├── packages/
-│   ├── payments/
-│   ├── installments/
-│   ├── vendors/
-│   ├── staff/
-│   ├── documents/
-│   ├── audit/
-│   └── reports/
-├── components/
-│   ├── ui/                  ← never edit manually (shadcn)
-│   ├── shared/
-│   └── layout/
-├── lib/
-│   ├── prisma.ts
-│   ├── axios.ts
-│   ├── jwt.ts
-│   ├── email.ts
-│   ├── storage.ts
-│   ├── pdf.ts
-│   ├── query-client.ts
-│   └── utils.ts
-├── types/
-│   └── index.ts
-├── providers/
-│   └── query-provider.tsx
-├── prisma/
-│   └── schema.prisma
-├── scripts/
-│   └── create-feature.mjs
-├── middleware.ts
-└── public/
-```
+Running `npx tsx prisma/seed.ts` creates the following test scenario:
+
+### Users
+
+| Username | Password | Role | Notes |
+|---|---|---|---|
+| `admin` | `FabMemories123!` | ADMIN | Login at `/staff-login` |
+| `coordinator` | `FabMemories123!` | COORDINATOR | Maria Santos |
+| `coordinator2` | `FabMemories123!` | COORDINATOR | James Villanueva |
+| `coordinator3` | `FabMemories123!` | COORDINATOR | Kristine Uy |
+| `coordinator4` | `FabMemories123!` | COORDINATOR | Paolo Mendoza |
+| `vendor` | `FabMemories123!` | VENDOR | Juan dela Cruz |
+| `anna.fabmemories@example.com` | `FabMemories123!` | CLIENT | Login at `/sign-in` |
+| `ben.fabmemories@example.com` | `FabMemories123!` | CLIENT | Login at `/sign-in` |
+
+### Seeded Bookings
+
+| # | Client | Event | Status | Plan | Notes |
+|---|---|---|---|---|---|
+| 1 | Anna | Debut (+45d, Cebu) | CONFIRMED | INSTALLMENT | Deposit verified, inst#1 paid, inst#2 submitted. 3 vendors (2 confirmed). 3 primary + 1 backup coordinator. |
+| 2 | Ben | Corporate (+60d, Cebu) | CONFIRMED | FULL | Deposit verified, full balance submitted. 1 vendor confirmed. No staff assigned. |
+| 3 | Anna | Wedding (+90d, Negros) | PENDING | (no terms) | Awaiting contract terms. 3 vendor categories requested. No staff. |
+| 4 | Ben | Birthday (+45d, Cebu) | PENDING | FULL | Deposit overdue. Same date as Anna's Debut — seeded coordinator conflict (FR-40). |
+| 5 | Anna | Wedding (past) | CANCELLED | — | Cancelled booking for testing. |
+
+### Seeded Vendors
+
+Bloom & Petal Florals · Lens & Frame Photography · CineVision Videography · Feria Catering Services · Glow Events Decoration
 
 ---
 
-## Folder Responsibilities
+## 11. API Reference
 
-### `app/`
-The Next.js App Router lives here. This folder is **routes only** — pages import components and call hooks but contain no business logic, no direct DB calls, and no inline validation.
+### Bookings
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/bookings` | ADMIN/COORDINATOR/CLIENT | List bookings (role-scoped) |
+| POST | `/api/bookings` | CLIENT | Create booking request |
+| GET | `/api/bookings/[id]` | ADMIN/COORDINATOR/CLIENT | Get single booking |
+| PATCH | `/api/bookings/[id]` | ADMIN | Update booking |
+| POST | `/api/bookings/[id]/contract-terms` | ADMIN | Set payment plan + due dates |
+| POST | `/api/bookings/[id]/cancel-request` | CLIENT | Request cancellation |
+| GET | `/api/bookings/availability` | Any auth | Check date availability |
+| GET/POST | `/api/bookings/[id]/installments` | ADMIN | Installment schedule |
+| GET/POST | `/api/bookings/[id]/staff` | ADMIN | Staff assignments |
+| DELETE | `/api/bookings/[id]/staff/[assignmentId]` | ADMIN | Remove assignment |
+| GET/POST | `/api/bookings/[id]/vendors` | ADMIN | Booking vendors |
+| PATCH/DELETE | `/api/bookings/[id]/vendors/[vendorId]` | ADMIN | Update/remove vendor |
 
-- `app/(public)/` — publicly accessible pages (no login required). Currently only `/login`.
-- `app/(authenticated)/` — all protected pages (JWT required). Middleware enforces this at the route level.
-- `app/api/` — API route handlers. Each route receives a request, validates the body against the feature's Zod schema, calls the data layer, writes an audit log entry, and returns a response. No business logic beyond that.
-- `app/generated/prisma/` — Prisma client output. **Never edit this folder.** Regenerate with `npx prisma generate`.
+### Payments
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/payments` | ADMIN/COORDINATOR | List all payments |
+| POST | `/api/payments` | CLIENT | Submit payment + proof |
+| POST | `/api/payments/manual` | ADMIN/COORDINATOR | Record manual payment |
+| POST | `/api/payments/[id]/verify` | ADMIN/COORDINATOR | Verify or flag payment |
 
----
+### Packages
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/public/packages` | None | Public package listing |
+| GET | `/api/packages` | Any auth | Staff package listing |
+| POST | `/api/packages` | ADMIN | Create package |
+| PATCH/DELETE | `/api/packages/[id]` | ADMIN | Update/delete package |
 
-### `features/`
-The core of the application. Each domain concept gets its own feature folder. A developer working on any feature only needs to look inside that one folder.
+### Vendors
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET/POST | `/api/vendors` | ADMIN | Vendor directory |
+| PATCH/DELETE | `/api/vendors/[id]` | ADMIN | Update/delete vendor |
+| GET | `/api/vendor-brief/[bookingId]` | None | Public vendor brief |
 
-Every feature follows the same internal structure:
+### Staff
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/staff` | ADMIN/COORDINATOR | Coordinator roster |
+| GET | `/api/staff/calendar` | ADMIN/COORDINATOR | Calendar month view |
+| GET | `/api/staff/my-schedule` | COORDINATOR | Own assignments |
+| GET | `/api/staff/my-dashboard` | COORDINATOR | Own dashboard stats |
+| GET/POST/DELETE | `/api/staff-accounts/[id]` | ADMIN | Staff account management |
 
-```
-features/[feature]/
-├── components/   # UI components used only within this feature
-├── hooks/        # Data-fetching hooks (useQuery / useMutation wrappers)
-├── services/     # Raw HTTP call functions — no React, no hooks
-├── schemas/      # Zod validation schemas
-├── types/        # TypeScript types specific to this domain
-└── index.ts      # Barrel file — re-exports everything public-facing
-```
-
-**The rule:** if something is used only within one feature, it stays inside that feature. When a second feature needs it, it moves to the appropriate shared location.
-
-#### `features/[feature]/components/`
-React components only ever rendered within this feature. If a component is needed by two features, it moves to `components/shared/`.
-
-#### `features/[feature]/hooks/`
-React hooks that wrap service functions with `useQuery` or `useMutation`. The only layer that imports from TanStack React Query. Components call hooks — they never call service functions directly.
-
-```ts
-// hooks know about the data-fetching library
-export const useBooking = (id: string) =>
-  useQuery({ queryKey: ["bookings", id], queryFn: () => getBooking(id) })
-```
-
-#### `features/[feature]/services/`
-Plain async functions that make HTTP requests via `lib/axios.ts`. **No React, no hooks** — just functions that take inputs and return data.
-
-```ts
-// services only know about the HTTP client
-export const getBooking = async (id: string) => {
-  const { data } = await api.get(`/bookings/${id}`)
-  return data
-}
-```
-
-#### `features/[feature]/schemas/`
-Zod schemas that define the shape of data for this feature. These are the **single source of truth** for validation — the same schema is used by the form on the client and the API route handler on the server. Never define validation in two places.
-
-#### `features/[feature]/types/`
-TypeScript types specific to this domain. These extend or compose Prisma-generated types — they never redefine them. Prisma types are imported from `@/types`.
-
-#### `features/[feature]/index.ts`
-The barrel file. Re-exports everything that other features or `app/` pages need.
-
-```ts
-// ✅ Clean — import from the barrel
-import { useBooking, BookingWithPayments } from "@/features/bookings"
-
-// ❌ Avoid — deep import paths
-import { useBooking } from "@/features/bookings/hooks/use-booking"
-```
+### Audit & Reports
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| GET | `/api/audit` | ADMIN | Paginated audit log |
+| GET | `/api/audit/stats` | ADMIN | Aggregate stats |
+| GET | `/api/audit/verify` | ADMIN | Full chain integrity check |
+| GET | `/api/reports/dashboard` | ADMIN | Admin dashboard summary |
 
 ---
 
-### `components/`
-Shared UI components — used across two or more features.
+## 12. Key Design Decisions
 
-- `components/ui/` — auto-generated by shadcn/ui CLI. **Never edit this folder.**
-- `components/shared/` — cross-feature reusable components: `confirm-dialog.tsx`, `empty-state.tsx`, `loading-spinner.tsx`, `data-table.tsx`, `status-badge.tsx`, etc.
-- `components/layout/` — app shell: `sidebar.tsx`, `topbar.tsx`, `role-guard.tsx`.
+### Server-Side Price Resolution
+When a client submits a booking, `agreedPrice` is resolved server-side by reading the package record from the database. The client cannot pass a manipulated price value — the API ignores any price from the request body.
 
----
+### Hash-Chained Audit Trail
+The audit log uses a SHA-256 hash chain (similar to a blockchain) where each entry's hash incorporates the previous entry's hash. This means that altering any historical audit record — even a single character — will cause every subsequent hash to fail verification. The `AuditChainState` singleton row is locked with `SELECT ... FOR UPDATE` inside every write transaction, ensuring no two concurrent `logAction()` calls can ever produce the same `previousHash` (which would fork the chain).
 
-### `lib/`
-Framework-level setup and utilities. Nothing here is domain-specific.
+### Canonical JSON for Audit Hashing
+Postgres's `jsonb` type reorders object keys on storage. Since the same logical metadata must hash identically whether computed at write time or at verification time, all metadata is serialized through `canonicalStringify()` (key-sorted, deterministic) before hashing.
 
-- `lib/prisma.ts` — Prisma client singleton. Import `prisma` from here in all API routes.
-- `lib/axios.ts` — Configured Axios instance with base URL and error interceptors. Import `api` from here in all service files.
-- `lib/jwt.ts` — `signAccessToken()`, `signRefreshToken()`, `verifyToken()` helpers.
-- `lib/email.ts` — `sendOtpEmail()`, `sendDocumentNotification()`, `sendReceiptEmail()` wrappers around Resend.
-- `lib/storage.ts` — Supabase Storage helpers: `uploadPaymentProof()`, `getDocumentUrl()`, `deleteFile()`.
-- `lib/pdf.ts` — Document generation helpers: `generatePdf(template, data)` → Buffer.
-- `lib/query-client.ts` — TanStack QueryClient factory used by QueryProvider.
-- `lib/utils.ts` — General helpers: `cn()` for class merging, formatters, date utilities.
+### Signed Storage URLs
+Payment proof images are stored in Supabase Storage under a private bucket. The API generates short-lived signed URLs on every fetch — the client never gets a permanent public URL to proof images.
 
----
+### Date Availability Rule
+The system enforces a one-CONFIRMED-event-per-date rule. PENDING bookings on the same date are allowed (for quotes/exploratory requests), but a second `CONFIRMED` booking on the same calendar day is rejected at the API level.
 
-### `types/`
-Global TypeScript types available everywhere in the app.
+### Feature Slice Architecture
+All business logic lives in `features/<module>/`:
+- `<module>.types.ts` — TypeScript interfaces
+- `<module>.schema.ts` — Zod validation schemas
+- `<module>.query.ts` — Prisma DB queries (server-only)
+- `<module>.api.ts` — Axios API functions (client-side)
+- `<module>.hooks.ts` — TanStack Query hooks
+- `<module>.constants.ts` — Labels, enums, display config
+- `components/` — React UI components for this module
 
-```ts
-// types/index.ts
-// Re-export Prisma types so features don't import from the generated path directly
-export type {
-  User, Booking, Package, Payment, Installment,
-  Vendor, VendorAssignment, Coordinator, StaffAssignment,
-  Document, AuditLog, DocumentTemplate
-} from "@/app/generated/prisma"
-
-// Enums
-export {
-  Role, BookingStatus, PaymentStatus, PaymentMethod,
-  ProofType, EventType, PackageTier, LocationType,
-  VendorServiceType, AssignmentStatus, DocumentType, AuditAction
-} from "@/app/generated/prisma"
-
-// Shared API response wrappers
-export type ApiResponse<T> = { data: T; message?: string }
-export type PaginatedResponse<T> = { data: T[]; total: number; page: number; pageSize: number }
-export type ApiError = { error: string }
-```
-
----
-
-### `providers/`
-React context providers wrapping the app.
-
-- `providers/query-provider.tsx` — Mounts `QueryClientProvider` and React Query devtools. Imported in the root layout.
-
----
-
-### `prisma/`
-Prisma schema and migration files.
-
-- `prisma/schema.prisma` — the full database schema. All model and enum definitions live here.
-
-> **Note:** The Prisma client is generated to a custom path: `app/generated/prisma/`. Always import from `@/app/generated/prisma` — or better, from `@/types` which re-exports everything. Never import from `@prisma/client`.
-
----
-
-### `middleware.ts`
-Next.js middleware that runs on every request. Responsibilities:
-1. Reads the JWT access token from the `httpOnly` cookie.
-2. Verifies the token with `lib/jwt.ts`.
-3. Redirects unauthenticated requests on `/(authenticated)/*` to `/login`.
-4. Attaches the decoded payload (userId, role) to the request headers for downstream API routes.
-
----
-
-### `scripts/`
-Node utility scripts for development workflow automation. Not bundled, not imported — run via `npm run <script>`.
-
-- `scripts/create-feature.mjs` — scaffolds a new feature folder. Zero external dependencies; uses only Node built-ins.
-
----
-
-## Key Conventions
-
-**1. Feature-local first, promote when shared.**
-Start inside the feature. Move to `components/shared/`, `lib/`, or `types/` only when a second feature needs it.
-
-**2. Barrel files keep imports clean.**
-Every feature has an `index.ts`. Always import from `@/features/[feature]`, never from deep internal paths.
-
-**3. Services → Hooks → Components. Never skip a layer.**
-Components call hooks. Hooks call services. Services call `lib/axios.ts`. Each layer has one job.
-
-**4. One schema, two uses.**
-The same Zod schema validates the form on the client and the request body in the API route.
-
-**5. `app/` stays thin.**
-If a page file is growing with logic, it belongs in a hook or service.
-
-**6. Never manually edit auto-generated folders.**
-`app/generated/prisma/` and `components/ui/` are owned by their respective CLI tools.
-
-**7. ORM types flow through `types/index.ts`.**
-Feature files import from `@/types`, not directly from the generated Prisma path.
-
-**8. Every mutating API route writes to AuditLog.**
-All POST, PATCH, and DELETE routes write an `AuditLog` entry within the same Prisma transaction as the business operation. This is non-negotiable — the audit trail is the core accountability mechanism of the system.
-
-**9. Payment records are immutable after verification.**
-No PATCH route will accept changes to a `Payment` record once its status is `VERIFIED`. This is enforced at the API level and tested.
-
-**10. Role checks happen at the route level, not the component level.**
-`middleware.ts` enforces authentication. API routes enforce role. UI components use role information for display only — never for access control.
+This keeps concerns co-located and makes each module independently understandable.
