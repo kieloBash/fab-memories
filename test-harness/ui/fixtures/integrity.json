@@ -1,0 +1,56 @@
+{
+ "generatedAt": "2026-09-20T11:04:39.648Z",
+ "overall": "fail",
+ "database": {
+  "role": "fab",
+  "usingRuntimeUrl": false
+ },
+ "checks": [
+  {
+   "id": "audit-chain",
+   "title": "Audit trail is untampered",
+   "status": "pass",
+   "summary": "All 278 entries verify, and the recorded chain tip (#278) matches the last entry.",
+   "detail": [
+    "Every entry's hash was recomputed and linked to its predecessor.",
+    "The chain tip was compared with the last entry, so deleted trailing entries would be caught."
+   ]
+  },
+  {
+   "id": "audit-immutable",
+   "title": "Audit table is write-protected",
+   "status": "warn",
+   "summary": "The app's database role can UPDATE, DELETE, TRUNCATE audit entries. The hash chain would still DETECT tampering, but the database does not PREVENT it.",
+   "detail": [
+    "Connected as database role \"fab\" via DATABASE_URL (fallback) (a superuser)."
+   ],
+   "remedy": "Run prisma/scripts/create-restricted-role.sql as the database owner, then point RUNTIME_DATABASE_URL at the new app_runtime role (keep DIRECT_URL on the owner for migrations and seeding)."
+  },
+  {
+   "id": "one-per-date-index",
+   "title": "One booking per date is enforced by the database",
+   "status": "pass",
+   "summary": "A unique index prevents two CONFIRMED (or cancellation-pending) bookings on the same date — even under concurrent requests.",
+   "detail": [
+    "Index \"Booking_held_eventDate_key\" is unique and applies to: (status = ANY (ARRAY['CONFIRMED'::\"BookingStatus\", 'CANCELLATION_REQUESTED'::\"BookingStatus\"]))"
+   ]
+  },
+  {
+   "id": "rule-violations",
+   "title": "No booking breaks a business rule",
+   "status": "fail",
+   "summary": "1 record(s) violate a booking rule.",
+   "detail": [
+    "Booking cmu9pemym0014ny7dj4dkq8zh (2027-01-23) is CONFIRMED without a verified deposit"
+   ],
+   "remedy": "Fix each record: cancel or decline the duplicate booking, or record/verify the missing deposit. (Records created by an old code path or direct database edits can look like this; the new gate makes new ones impossible.)"
+  },
+  {
+   "id": "audit-write-failures",
+   "title": "No audit entry has been lost",
+   "status": "pass",
+   "summary": "Every attempted audit write in the last 30 days was recorded.",
+   "detail": []
+  }
+ ]
+}

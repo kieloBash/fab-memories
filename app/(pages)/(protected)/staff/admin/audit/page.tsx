@@ -2,6 +2,7 @@
 "use client"
 
 import { useState } from "react"
+import Link from "next/link"
 import { motion } from "framer-motion"
 import { useAuditLogs } from "@/features/audit"
 import type { AuditFilterInput } from "@/features/audit"
@@ -11,6 +12,7 @@ import { AuditFiltersBar } from "@/features/audit/components/audit-filters-bar"
 import { AuditLogTable } from "@/features/audit/components/audit-log-table"
 import { ExportAuditButton } from "@/features/audit/components/export-audit-button"
 import { PageHeader } from "@/components/ui/page-header"
+import { Button } from "@/components/ui/button"
 import { ShieldCheck } from "lucide-react"
 import { SPRING } from "@/lib/framer/framer-utils"
 
@@ -27,7 +29,14 @@ export default function AuditTrailPage() {
         title="Audit trail"
         subtitle="Every action, every user, cryptographically chained"
         icon={ShieldCheck}
-        actions={<ExportAuditButton filters={filters} />}
+        actions={
+          <>
+            <Link href="/staff/admin/audit/integrity">
+              <Button variant="outline" size="sm"><ShieldCheck size={13} aria-hidden="true" /> System integrity</Button>
+            </Link>
+            <ExportAuditButton filters={filters} />
+          </>
+        }
       />
 
       <AuditStatCards />

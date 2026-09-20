@@ -8,7 +8,8 @@ import {
   resolveAgreedPrice,
 } from "@/features/bookings/bookings.query"
 import { bookingFilterSchema, createBookingSchema } from "@/features/bookings/bookings.schema"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { NextResponse } from "next/server"
 
@@ -94,9 +95,10 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Package not found" }, { status: 404 })
   }
 
-  const booking = await createBookingRecord(actor.id, parsed.data, agreedPrice)
-
-  await logAction({
+  const r_booking = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await createBookingRecord(actor.id, parsed.data, agreedPrice, tx)
+      audit({
     userId:      actor.id,
     action:      "CREATE",
     module:      "BOOKING",
@@ -108,6 +110,12 @@ export async function POST(req: Request) {
       isProvincial: parsed.data.isProvincial ?? false,
     },
   })
+      return result
+    }),
+    { userId: actor.id, module: "BOOKING", action: "CREATE", what: "submit the booking request" },
+  )
+  if (!r_booking.ok) return r_booking.response
+  const booking = r_booking.value
 
   return NextResponse.json(booking, { status: 201 })
 }

@@ -1,7 +1,4 @@
-import type { Role } from '@/app/generated/prisma/client';
-import { logAction } from '@/lib/audit/log';
-import { clerkClient } from '@/lib/clerk/client';
-import { prisma } from '@/lib/prisma';
+import { processClerkEvent } from '@/lib/clerk/webhook-handler';
 import { headers } from 'next/headers';
 import { Webhook } from 'svix';
 
@@ -20,6 +17,10 @@ import { Webhook } from 'svix';
  *    gap: the AuditAction.LOGIN enum value existed but nothing ever
  *    wrote it).
  *  - session.ended / session.removed: logs a LOGOUT audit entry.
+ *  - user.updated with locked=true: logs an account-lockout entry (Module 9).
+ *
+ * The event logic itself lives in lib/clerk/webhook-handler.ts so it can be tested
+ * without a Clerk signature.
  */
 export async function POST(req: Request) {
     const payload = await req.text();
@@ -44,116 +45,10 @@ export async function POST(req: Request) {
         return new Response('Invalid signature', { status: 400 });
     }
 
-    const eventType = evt.type;
-    const data = evt.data;
-
     try {
-        switch (eventType) {
-            case 'user.created': {
-                const existingRole = data.public_metadata?.role as Role | undefined;
-                const role: Role = existingRole ?? 'CLIENT';
-
-                // Public self sign-ups won't have a role set yet — default them
-                // to CLIENT and write it back so future session tokens carry it.
-                if (!existingRole) {
-                    const clerk = await clerkClient();
-                    await clerk.users.updateUserMetadata(data.id, {
-                        publicMetadata: { role: 'CLIENT' },
-                    });
-                }
-
-                const dbUser = await prisma.user.upsert({
-                    where: { clerkId: data.id },
-                    update: {},
-                    create: {
-                        clerkId: data.id,
-                        email: data.email_addresses?.[0]?.email_address ?? null,
-                        username: data.username ?? null,
-                        fullName: `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim() || 'Unnamed User',
-                        role,
-                    },
-                });
-
-                await logAction({
-                    userId: dbUser.id,
-                    action: 'CREATE',
-                    module: 'AUTH',
-                    description: `User account created (role: ${role})`,
-                    metadata: { clerkId: data.id, role },
-                });
-                break;
-            }
-
-            case 'user.updated': {
-                const role = data.public_metadata?.role as Role | undefined;
-
-                await prisma.user.updateMany({
-                    where: { clerkId: data.id },
-                    data: {
-                        email: data.email_addresses?.[0]?.email_address ?? null,
-                        username: data.username ?? null,
-                        fullName: `${data.first_name ?? ''} ${data.last_name ?? ''}`.trim() || undefined,
-                        ...(role ? { role } : {}),
-                    },
-                });
-                break;
-            }
-
-            case 'user.deleted': {
-                // Soft delete preferred — preserves audit log FK integrity.
-                await prisma.user.updateMany({
-                    where: { clerkId: data.id },
-                    data: { isActive: false },
-                });
-                break;
-            }
-
-            case 'session.created': {
-                const dbUser = await prisma.user.findUnique({
-                    where: { clerkId: data.user_id },
-                    select: { id: true, fullName: true, role: true },
-                });
-
-                await logAction({
-                    userId: dbUser?.id ?? null,
-                    action: 'LOGIN',
-                    module: 'AUTH',
-                    description: dbUser
-                        ? `${dbUser.fullName} (${dbUser.role}) signed in`
-                        : 'A user signed in',
-                    metadata: { clerkSessionId: data.id, clerkUserId: data.user_id },
-                });
-                break;
-            }
-
-            // Clerk fires `session.ended` on normal sign-out and
-            // `session.removed` when a session is revoked (e.g. from
-            // another device, or by an admin) — both represent the
-            // session no longer being active, so both are logged as LOGOUT.
-            case 'session.ended':
-            case 'session.removed': {
-                const dbUser = await prisma.user.findUnique({
-                    where: { clerkId: data.user_id },
-                    select: { id: true, fullName: true, role: true },
-                });
-
-                await logAction({
-                    userId: dbUser?.id ?? null,
-                    action: 'LOGOUT',
-                    module: 'AUTH',
-                    description: dbUser
-                        ? `${dbUser.fullName} (${dbUser.role}) signed out`
-                        : 'A user session ended',
-                    metadata: { clerkSessionId: data.id, clerkUserId: data.user_id, eventType },
-                });
-                break;
-            }
-
-            default:
-                break;
-        }
+        await processClerkEvent(evt);
     } catch (err) {
-        console.error(`Failed to process webhook event ${eventType}:`, err);
+        console.error(`Failed to process webhook event ${evt.type}:`, err);
         return new Response('Webhook handler error', { status: 500 });
     }
 

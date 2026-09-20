@@ -1,7 +1,8 @@
 // app/api/bookings/[bookingId]/installments/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { createInstallmentScheduleSchema } from "@/features/installments/installments.schema"
 import {
   createInstallmentScheduleRecord,
@@ -92,15 +93,22 @@ export async function POST(req: Request, { params }: Params) {
     )
   }
 
-  const result = await createInstallmentScheduleRecord(bookingId, parsed.data)
-
-  await logAction({
+  const r_result = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await createInstallmentScheduleRecord(bookingId, parsed.data, tx)
+      audit({
     userId:      actor.id,
     action:      "CREATE",
     module:      "PAYMENT",
     description: `Admin "${actor.fullName}" set installment schedule (${result.count} new installments) for booking ${bookingId}`,
     metadata:    { bookingId, count: result.count },
   })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "CREATE", what: "save the installment schedule" },
+  )
+  if (!r_result.ok) return r_result.response
+  const result = r_result.value
 
   return NextResponse.json({ count: result.count }, { status: 201 })
 }

@@ -67,6 +67,7 @@ export async function getRiskIndicators(options: RiskOptions = {}): Promise<Risk
     upcomingByDate,
     failureCount,
     chain,
+    auditWriteFailures,
   ] = await Promise.all([
     // 1 ── proof waiting too long
     prisma.payment.findMany({
@@ -203,6 +204,9 @@ export async function getRiskIndicators(options: RiskOptions = {}): Promise<Risk
 
     // 12 ─ audit chain integrity (cached unless forced). Never fail the whole scan.
     getChainIntegrity(options.forceChainCheck ?? false).catch(() => null),
+
+    // 13 ─ audit entries that could not be written (Module 9 — fail-closed audit)
+    prisma.auditWriteFailure.count({ where: { createdAt: { gte: failureWindowStart } } }),
   ])
 
   // Rules whose query hit MAX_ROWS_PER_RULE — their counts are a floor ("200+"), not exact.
@@ -490,6 +494,19 @@ export async function getRiskIndicators(options: RiskOptions = {}): Promise<Risk
       detail: `Chain breaks at entry #${chain.brokenAtSequence}. ${chain.reason ?? ""}`.trim(),
       href: "/staff/admin/audit",
       priorityDate: new Date(chain.verifiedAt),
+    })
+  }
+
+  // ── 13. Audit entries that could not be written ─────────────────
+  if (auditWriteFailures > 0) {
+    add({
+      kind: "AUDIT_WRITE_FAILED",
+      severity: "HIGH",
+      refId: "window",
+      title: `${auditWriteFailures} audit entr${auditWriteFailures === 1 ? "y" : "ies"} could not be written in the last ${T.AUDIT_FAILURE_WINDOW_HOURS}h`,
+      detail: "Bookings, payments and installments are rolled back when their audit entry fails; other entries may be missing. Check the system integrity page.",
+      href: "/staff/admin/audit/integrity",
+      priorityDate: now,
     })
   }
 

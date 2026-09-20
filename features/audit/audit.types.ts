@@ -56,4 +56,6 @@ export interface ChainIntegrityResult {
   brokenAtSequence: number | null
   reason:           string | null
   verifiedAt:       string
+  /** Module 9: the chain tip recorded by logAction() versus the last entry actually present. */
+  tip?:             { recordedSequence: number; actualSequence: number; matches: boolean }
 }

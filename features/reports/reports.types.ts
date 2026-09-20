@@ -48,6 +48,7 @@ export type RiskKind =
   | "DATE_CONTENTION"
   | "AUDIT_INTEGRITY"
   | "AUDIT_FAILURES"
+  | "AUDIT_WRITE_FAILED"
 
 export interface RiskIndicator {
   /** Stable key, e.g. "INSTALLMENT_OVERDUE:inst_abc". */

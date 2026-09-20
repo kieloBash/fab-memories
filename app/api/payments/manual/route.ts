@@ -1,7 +1,8 @@
 // app/api/payments/manual/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { recordManualPaymentSchema } from "@/features/payments/payments.schema"
 import { recordManualPaymentRecord } from "@/features/payments/payments.query"
 import { getBookingById } from "@/features/bookings/bookings.query"
@@ -55,9 +56,18 @@ export async function POST(req: Request) {
     )
   }
 
-  const payment = await recordManualPaymentRecord(parsed.data, actor.id)
+  // A DEPOSIT records AND confirms — it is only meaningful for a booking that is still pending.
+  if (parsed.data.paymentType === "DEPOSIT" && booking.status !== "PENDING") {
+    return NextResponse.json(
+      { error: "A deposit can only be recorded for a pending booking." , code: "INVALID_STATE" },
+      { status: 409 },
+    )
+  }
 
-  await logAction({
+  const r_payment = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await recordManualPaymentRecord(parsed.data, actor.id, tx)
+      audit({
     userId:      actor.id,
     action:      "CREATE",
     module:      "PAYMENT",
@@ -70,6 +80,12 @@ export async function POST(req: Request) {
       installmentId: parsed.data.installmentId,
     },
   })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "CREATE", what: "record the manual payment" },
+  )
+  if (!r_payment.ok) return r_payment.response
+  const payment = r_payment.value
 
   return NextResponse.json(payment, { status: 201 })
 }

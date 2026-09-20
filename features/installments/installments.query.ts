@@ -2,6 +2,7 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
+import { type DbClient, withTx } from "@/lib/db"
 import type { CreateInstallmentScheduleInput } from "./installments.schema"
 
 const WITH_PAYMENT = {
@@ -53,8 +54,9 @@ export async function getInstallmentById(id: string) {
 export async function createInstallmentScheduleRecord(
   bookingId: string,
   input: CreateInstallmentScheduleInput,
+  db: DbClient = prisma,
 ) {
-  return prisma.$transaction(async (tx) => {
+  return withTx(db, async (tx) => {
     // Find the highest order among PAID installments (locked in)
     const paidInstallments = await tx.installment.findMany({
       where: { bookingId, status: "PAID" },

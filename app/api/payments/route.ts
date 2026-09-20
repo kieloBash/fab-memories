@@ -1,7 +1,8 @@
 // app/api/payments/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { deletePaymentProof } from "@/lib/storage"
 import {
   submitPaymentSchema,
@@ -84,30 +85,42 @@ export async function POST(req: Request) {
     )
   }
 
-  let payment
-  try {
-    payment = await createPaymentRecord(parsed.data)
-  } catch (err) {
-    // If DB write fails and we have an orphaned storage upload, clean it up
-    if (parsed.data.proofStoragePath) {
-      await deletePaymentProof(parsed.data.proofStoragePath)
-    }
-    throw err
+  const cleanupUpload = async () => {
+    // A rejected/failed submission must not leave an orphaned proof image in storage.
+    if (parsed.data.proofStoragePath) await deletePaymentProof(parsed.data.proofStoragePath)
   }
 
-  await logAction({
+  let r_payment
+  try {
+    r_payment = await attempt(
+      auditedTransaction(async (tx, audit) => {
+        const result = await createPaymentRecord(parsed.data, tx)
+        audit({
     userId: actor.id,
     action: "CREATE",
     module: "PAYMENT",
     description: `Client "${actor.fullName}" submitted ${parsed.data.paymentType.toLowerCase()} proof for booking ${parsed.data.bookingId}`,
     metadata: {
-      paymentId:   payment.id,
+      paymentId:   result.id,
       bookingId:   parsed.data.bookingId,
       paymentType: parsed.data.paymentType,
       method:      parsed.data.method,
       amount:      parsed.data.amount,
     },
   })
+        return result
+      }),
+      { userId: actor.id, module: "PAYMENT", action: "CREATE", what: "submit the payment proof" },
+    )
+  } catch (err) {
+    await cleanupUpload()
+    throw err
+  }
+  if (!r_payment.ok) {
+    await cleanupUpload()
+    return r_payment.response
+  }
+  const payment = r_payment.value
 
   return NextResponse.json(payment, { status: 201 })
 }

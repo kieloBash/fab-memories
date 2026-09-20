@@ -9,6 +9,8 @@
 #
 # Prerequisites: DATABASE_URL points at a DEV database that has been seeded with
 #   npx tsx prisma/seed.ts && npx tsx prisma/seed-reports.ts
+# (Optional) OWNER_DATABASE_URL = owner-role URL, only needed when DATABASE_URL/RUNTIME_DATABASE_URL is the
+# restricted app_runtime role — used to clean up rows the restricted role may not delete.
 # NEVER point this at production: the tests create and delete a few temporary rows
 # and write audit entries.
 set -euo pipefail
@@ -23,3 +25,4 @@ trap 'mv "$AUTH.bak" "$AUTH"; echo "→ restored $AUTH"' EXIT
 cp test-harness/auth.stub.ts "$AUTH"
 
 npx tsx test-harness/verify-report-routes.ts
+npx tsx test-harness/verify-integrity-routes.ts

@@ -1,7 +1,8 @@
 // app/api/payments/[paymentId]/verify/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { verifyPaymentSchema } from "@/features/payments/payments.schema"
 import {
   flagPaymentRecord,
@@ -47,34 +48,58 @@ export async function PATCH(req: Request, { params }: Params) {
   const { action, verificationNote } = parsed.data
 
   if (action === "FLAG") {
-    const payment = await flagPaymentRecord(paymentId, actor.id, verificationNote)
-    await logAction({
-      userId: actor.id, action: "UPDATE", module: "PAYMENT",
-      description: `${actor.role} "${actor.fullName}" flagged ${existing.paymentType.toLowerCase()} payment`,
-      metadata: { paymentId, bookingId: existing.bookingId },
-    })
+    const r_payment_flag = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await flagPaymentRecord(paymentId, actor.id, verificationNote, tx)
+      audit({
+            userId: actor.id, action: "UPDATE", module: "PAYMENT",
+            description: `${actor.role} "${actor.fullName}" flagged ${existing.paymentType.toLowerCase()} payment`,
+            metadata: { paymentId, bookingId: existing.bookingId },
+          })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "UPDATE", what: "flag the payment" },
+  )
+  if (!r_payment_flag.ok) return r_payment_flag.response
+  const payment = r_payment_flag.value
     return NextResponse.json(payment)
   }
 
   // ── VERIFY ────────────────────────────────────────────────
 
   if (existing.paymentType === "DEPOSIT") {
-    const payment = await verifyDepositPaymentRecord(paymentId, existing.bookingId, actor.id, verificationNote)
-    await logAction({
-      userId: actor.id, action: "VERIFY", module: "PAYMENT",
-      description: `${actor.role} "${actor.fullName}" verified deposit — booking ${existing.bookingId} CONFIRMED`,
-      metadata: { paymentId, bookingId: existing.bookingId },
-    })
+    const r_payment_deposit = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await verifyDepositPaymentRecord(paymentId, existing.bookingId, actor.id, verificationNote, tx)
+      audit({
+            userId: actor.id, action: "VERIFY", module: "PAYMENT",
+            description: `${actor.role} "${actor.fullName}" verified deposit — booking ${existing.bookingId} CONFIRMED`,
+            metadata: { paymentId, bookingId: existing.bookingId },
+          })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "VERIFY", what: "verify the deposit" },
+  )
+  if (!r_payment_deposit.ok) return r_payment_deposit.response
+  const payment = r_payment_deposit.value
     return NextResponse.json(payment)
   }
 
   if (existing.paymentType === "FULL_BALANCE") {
-    const payment = await verifyFullBalancePaymentRecord(paymentId, actor.id, verificationNote)
-    await logAction({
-      userId: actor.id, action: "VERIFY", module: "PAYMENT",
-      description: `${actor.role} "${actor.fullName}" verified full balance payment for booking ${existing.bookingId}`,
-      metadata: { paymentId, bookingId: existing.bookingId },
-    })
+    const r_payment_full = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await verifyFullBalancePaymentRecord(paymentId, actor.id, verificationNote, tx)
+      audit({
+            userId: actor.id, action: "VERIFY", module: "PAYMENT",
+            description: `${actor.role} "${actor.fullName}" verified full balance payment for booking ${existing.bookingId}`,
+            metadata: { paymentId, bookingId: existing.bookingId },
+          })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "VERIFY", what: "verify the balance payment" },
+  )
+  if (!r_payment_full.ok) return r_payment_full.response
+  const payment = r_payment_full.value
     return NextResponse.json(payment)
   }
 
@@ -101,13 +126,20 @@ export async function PATCH(req: Request, { params }: Params) {
   if (targetInstallment.status === "PAID")
     return NextResponse.json({ error: "This installment is already paid" }, { status: 409 })
 
-  const payment = await verifyInstallmentPaymentRecord(
-    paymentId, targetInstallment.id, actor.id, verificationNote,
+  const r_payment_inst = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await verifyInstallmentPaymentRecord(
+    paymentId, targetInstallment.id, actor.id, verificationNote, tx)
+      audit({
+          userId: actor.id, action: "VERIFY", module: "PAYMENT",
+          description: `${actor.role} "${actor.fullName}" verified installment #${targetInstallment.order} for booking ${existing.bookingId}`,
+          metadata: { paymentId, bookingId: existing.bookingId, installmentId: targetInstallment.id },
+        })
+      return result
+    }),
+    { userId: actor.id, module: "PAYMENT", action: "VERIFY", what: "verify the installment" },
   )
-  await logAction({
-    userId: actor.id, action: "VERIFY", module: "PAYMENT",
-    description: `${actor.role} "${actor.fullName}" verified installment #${targetInstallment.order} for booking ${existing.bookingId}`,
-    metadata: { paymentId, bookingId: existing.bookingId, installmentId: targetInstallment.id },
-  })
+  if (!r_payment_inst.ok) return r_payment_inst.response
+  const payment = r_payment_inst.value
   return NextResponse.json(payment)
 }

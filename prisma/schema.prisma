@@ -375,3 +375,16 @@ model Installment {
   @@index([status])
   @@index([dueDate])
 }
+
+model AuditWriteFailure {
+  id          String      @id @default(cuid())
+  createdAt   DateTime    @default(now())
+  userId      String?
+  action      AuditAction
+  module      AuditModule
+  description String
+  error       String
+  attempts    Int         @default(1)
+
+  @@index([createdAt])
+}

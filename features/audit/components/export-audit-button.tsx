@@ -1,79 +1,37 @@
 // features/audit/components/export-audit-button.tsx
 "use client"
 
-import { useState } from "react"
-import { toast } from "sonner"
+import { Download, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Download } from "lucide-react"
-import { fetchAuditLogs } from "@/features/audit"
 import type { AuditFilterInput } from "@/features/audit"
-import { arrayToCsv, downloadCsv } from "@/lib/csv-export"
-
-const EXPORT_LIMIT = 10000
-
-interface ExportAuditButtonProps {
-  filters: AuditFilterInput
-}
+import { useExportReport } from "@/features/reports/reports.hooks"
 
 /**
- * FR-51 — exports the FULL filtered result set (not just the currently
- * visible page) as CSV. Includes each entry's chain sequence number and
- * hash, so an exported record remains independently checkable against
- * the live system later — the export itself carries its position in
- * the tamper-evident chain, not just a plain data dump.
+ * FR-51 — exports the FULL filtered audit trail as CSV, including each entry's sequence number and hash,
+ * so an exported record can be checked against the live chain later.
+ *
+ * MODULE 9: this used to build the CSV in the browser from the list API. Two problems:
+ *   1. it asked for pageSize 10,000 but that endpoint caps pageSize at 100 — so it never worked; and
+ *   2. no EXPORT entry was ever written to the audit trail, and cells were not protected against
+ *      spreadsheet formula injection.
+ * It now downloads the server-side export (GET /api/reports/audit/export), which is logged, escaped,
+ * and limited to 10,000 rows. Note: date filters there use Manila calendar days.
  */
-export function ExportAuditButton({ filters }: ExportAuditButtonProps) {
-  const [exporting, setExporting] = useState(false)
+export function ExportAuditButton({ filters }: { filters: AuditFilterInput }) {
+  const { mutate, isPending } = useExportReport("audit")
 
-  const handleExport = async () => {
-    setExporting(true)
-    try {
-      const page = await fetchAuditLogs({ ...filters, page: 1, pageSize: EXPORT_LIMIT })
-
-      const csv = arrayToCsv(
-        page.entries.map((e) => ({
-          sequence: e.sequence,
-          timestamp: e.createdAt,
-          user: e.userName ?? "System",
-          action: e.action,
-          module: e.module,
-          description: e.description,
-          status: e.status,
-          hash: e.hash,
-          previousHash: e.previousHash ?? "GENESIS",
-        })),
-        [
-          { key: "sequence",     label: "Sequence #" },
-          { key: "timestamp",    label: "Timestamp" },
-          { key: "user",         label: "User" },
-          { key: "action",       label: "Action" },
-          { key: "module",       label: "Module" },
-          { key: "description",  label: "Description" },
-          { key: "status",       label: "Status" },
-          { key: "hash",         label: "Entry Hash (SHA-256)" },
-          { key: "previousHash", label: "Previous Hash" },
-        ],
-      )
-
-      const dateLabel = new Date().toISOString().slice(0, 10)
-      downloadCsv(`audit-trail-${dateLabel}.csv`, csv)
-
-      toast.success(`Exported ${page.entries.length} audit log entries`, {
-        description: page.total > EXPORT_LIMIT
-          ? `Showing the first ${EXPORT_LIMIT.toLocaleString()} of ${page.total.toLocaleString()} matching entries — narrow your filters for a complete export.`
-          : undefined,
-      })
-    } catch {
-      toast.error("Export failed. Please try again.")
-    } finally {
-      setExporting(false)
-    }
-  }
+  const handleExport = () =>
+    mutate({
+      filters: {
+        from: filters.from, to: filters.to, userId: filters.userId,
+        module: filters.module, action: filters.action, status: filters.status, search: filters.search,
+      },
+    })
 
   return (
-    <Button variant="outline" size="sm" onClick={handleExport} disabled={exporting}>
-      <Download size={13} aria-hidden="true" />
-      {exporting ? "Exporting…" : "Export CSV"}
+    <Button variant="outline" size="sm" onClick={handleExport} disabled={isPending}>
+      {isPending ? <Loader2 size={13} className="animate-spin" aria-hidden="true" /> : <Download size={13} aria-hidden="true" />}
+      {isPending ? "Exporting…" : "Export CSV"}
     </Button>
   )
 }

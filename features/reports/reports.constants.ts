@@ -95,6 +95,7 @@ export const RISK_KIND_LABELS = {
   DATE_CONTENTION:            "Competing booking requests for one date",
   AUDIT_INTEGRITY:            "Audit chain integrity failure",
   AUDIT_FAILURES:             "Repeated failed actions",
+  AUDIT_WRITE_FAILED:         "Audit entries could not be written",
 } as const
 
 // ── React Query keys & API routes ────────────────────────────────

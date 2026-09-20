@@ -1,7 +1,8 @@
 // app/api/bookings/[bookingId]/cancel-request/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { cancelRequestSchema } from "@/features/bookings/bookings.schema"
 import {
   getBookingById,
@@ -46,15 +47,22 @@ export async function POST(req: Request, { params }: Params) {
       { status: 422 },
     )
 
-  const updated = await requestCancellationRecord(bookingId, parsed.data.reason)
-
-  await logAction({
+  const r_updated = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await requestCancellationRecord(bookingId, parsed.data.reason, tx)
+      audit({
     userId:      actor.id,
     action:      "UPDATE",
     module:      "BOOKING",
     description: `Client "${actor.fullName}" requested cancellation of booking`,
     metadata:    { bookingId, reason: parsed.data.reason },
   })
+      return result
+    }),
+    { userId: actor.id, module: "BOOKING", action: "UPDATE", what: "request cancellation" },
+  )
+  if (!r_updated.ok) return r_updated.response
+  const updated = r_updated.value
 
   return NextResponse.json(updated)
 }

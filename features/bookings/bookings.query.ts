@@ -3,18 +3,15 @@
 
 import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
+import { type DbClient, withTx } from "@/lib/db"
+import { BOOKING_INCLUDE, HELD_STATUSES, transitionBooking } from "@/features/bookings/bookings.transition"
 import type {
   CreateBookingInput,
   SetContractTermsInput,
   UpdateBookingInput,
 } from "./bookings.schema"
 
-const WITH_RELATIONS = {
-  client: { select: { id: true, fullName: true, email: true, username: true } },
-  package: true,
-  confirmedBy: { select: { id: true, fullName: true, role: true } },
-  payments: true,
-} as const
+const WITH_RELATIONS = BOOKING_INCLUDE
 
 // ── Queries ───────────────────────────────────────────────────
 
@@ -55,13 +52,16 @@ export async function getBookingById(id: string) {
 export async function isDateAvailable(
   date: string,
   excludeBookingId?: string,
+  db: DbClient = prisma,
 ): Promise<boolean> {
   const start = new Date(date); start.setUTCHours(0, 0, 0, 0)
   const end = new Date(date); end.setUTCHours(23, 59, 59, 999)
 
-  const count = await prisma.booking.count({
+  // MODULE 9: a date stays held while a cancellation request is undecided — otherwise it could be
+  // resold, and "Decline & keep confirmed" would then create two confirmed events on one day.
+  const count = await db.booking.count({
     where: {
-      status: "CONFIRMED",
+      status: { in: HELD_STATUSES },
       eventDate: { gte: start, lte: end },
       id: excludeBookingId ? { not: excludeBookingId } : undefined,
     },
@@ -88,8 +88,9 @@ export async function createBookingRecord(
   clientId: string,
   input: CreateBookingInput,
   agreedPrice: number,
+  db: DbClient = prisma,
 ) {
-  return prisma.booking.create({
+  return db.booking.create({
     data: {
       clientId,
       packageId: input.packageId,
@@ -119,6 +120,7 @@ export async function updateBookingRecord(
   existingPackageId: string,
   existingIsProvincial: boolean,
   existingAgreedPrice: number,
+  db: DbClient = prisma,
 ) {
   const packageChanged = !!input.packageId && input.packageId !== existingPackageId
   const provincialChanged = input.isProvincial !== undefined && input.isProvincial !== existingIsProvincial
@@ -130,7 +132,7 @@ export async function updateBookingRecord(
     agreedPrice = await resolveAgreedPrice(targetPackageId, targetProvincial)
   }
 
-  return prisma.booking.update({
+  return db.booking.update({
     where: { id },
     data: {
       packageId: input.packageId,
@@ -162,8 +164,9 @@ export async function updateBookingRecord(
 export async function setContractTermsRecord(
   id: string,
   input: SetContractTermsInput,
+  db: DbClient = prisma,
 ) {
-  return prisma.booking.update({
+  return db.booking.update({
     where: { id },
     data: {
       ...(input.agreedPrice !== undefined && { agreedPrice: input.agreedPrice }),
@@ -181,37 +184,30 @@ export async function setContractTermsRecord(
   })
 }
 
-export async function deleteBookingRecord(id: string) {
-  return prisma.booking.delete({ where: { id } })
+export async function deleteBookingRecord(id: string, db: DbClient = prisma) {
+  return db.booking.delete({ where: { id } })
 }
 
-export async function requestCancellationRecord(id: string, reason: string) {
-  return prisma.booking.update({
-    where: { id },
-    data: {
-      status: "CANCELLATION_REQUESTED",
-      cancellationRequestReason: reason,
-      cancellationRequestedAt: new Date(),
-    },
-    include: WITH_RELATIONS,
-  })
+export async function requestCancellationRecord(id: string, reason: string, db: DbClient = prisma) {
+  return withTx(db, (tx) =>
+    transitionBooking(tx, {
+      bookingId: id,
+      to: "CANCELLATION_REQUESTED",
+      data: { cancellationRequestReason: reason, cancellationRequestedAt: new Date() },
+    }),
+  )
 }
 
-export async function confirmBookingRecord(id: string, confirmedById: string) {
-  return prisma.booking.update({
-    where: { id },
-    data: {
-      status: "CONFIRMED",
-      confirmedBy: { connect: { id: confirmedById } },
-    },
-    include: WITH_RELATIONS,
-  })
+/**
+ * Confirms a PENDING booking — or restores a CANCELLATION_REQUESTED one ("Decline & keep confirmed").
+ * Requires a VERIFIED deposit and a free date; see bookings.transition.ts.
+ */
+export async function confirmBookingRecord(id: string, confirmedById: string, db: DbClient = prisma) {
+  return withTx(db, (tx) => transitionBooking(tx, { bookingId: id, to: "CONFIRMED", actorId: confirmedById }))
 }
 
-export async function cancelBookingRecord(id: string, reason: string) {
-  return prisma.booking.update({
-    where: { id },
-    data: { status: "CANCELLED", cancellationReason: reason },
-    include: WITH_RELATIONS,
-  })
+export async function cancelBookingRecord(id: string, reason: string, db: DbClient = prisma) {
+  return withTx(db, (tx) =>
+    transitionBooking(tx, { bookingId: id, to: "CANCELLED", data: { cancellationReason: reason } }),
+  )
 }

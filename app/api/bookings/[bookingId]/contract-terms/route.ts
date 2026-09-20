@@ -1,7 +1,8 @@
 // app/api/bookings/[bookingId]/contract-terms/route.ts
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
-import { logAction } from "@/lib/audit/log"
+import { auditedTransaction, logAction } from "@/lib/audit/log"
+import { attempt } from "@/lib/route-errors"
 import { setContractTermsSchema } from "@/features/bookings/bookings.schema"
 import {
   getBookingById,
@@ -66,9 +67,10 @@ export async function PATCH(req: Request, { params }: Params) {
     )
   }
 
-  const updated = await setContractTermsRecord(bookingId, parsed.data)
-
-  await logAction({
+  const r_updated = await attempt(
+    auditedTransaction(async (tx, audit) => {
+      const result = await setContractTermsRecord(bookingId, parsed.data, tx)
+      audit({
     userId:      actor.id,
     action:      "UPDATE",
     module:      "BOOKING",
@@ -81,6 +83,12 @@ export async function PATCH(req: Request, { params }: Params) {
       depositDueDate: parsed.data.depositDueDate,
     },
   })
+      return result
+    }),
+    { userId: actor.id, module: "BOOKING", action: "UPDATE", what: "set the contract terms" },
+  )
+  if (!r_updated.ok) return r_updated.response
+  const updated = r_updated.value
 
   return NextResponse.json(updated)
 }

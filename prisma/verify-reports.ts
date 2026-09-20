@@ -68,7 +68,7 @@ async function main() {
     s2b: await bookingIdOf("S2b-"), s3: await bookingIdOf("S3-"), s4: await bookingIdOf("S4-"),
     s5: await bookingIdOf("S5-"), s6: await bookingIdOf("S6-"), s7: await bookingIdOf("S7-"),
     s8a: await bookingIdOf("S8a-"), s8b: await bookingIdOf("S8b-"), s9: await bookingIdOf("S9-"),
-    s10a: await bookingIdOf("S10a-"), s11: await bookingIdOf("S11-"),
+    s10a: await bookingIdOf("S10a-"), s10b: await bookingIdOf("S10b-"), s11: await bookingIdOf("S11-"),
   }
   if (!S.s1 || !S.s6) {
     console.error("Scenario data not found — run `npx tsx prisma/seed-reports.ts` first.")
@@ -96,7 +96,7 @@ async function main() {
   check("S8  two pending, one date     → DATE_CONTENTION / LOW",
     risks.items.some((i) => i.kind === "DATE_CONTENTION" && i.severity === "LOW" && (i.bookingId === S.s8a || i.bookingId === S.s8b)))
   check("S9  cancellation 100h → CANCELLATION_PENDING / HIGH", find("CANCELLATION_PENDING", S.s9)?.severity === "HIGH", find("CANCELLATION_PENDING", S.s9))
-  if (S.s10a) check("S10 two confirmed, one date → DOUBLE_CONFIRMED / HIGH", risks.items.some((i) => i.kind === "DOUBLE_CONFIRMED" && i.severity === "HIGH"))
+  if (S.s10a && S.s10b) check("S10 two confirmed, one date → DOUBLE_CONFIRMED / HIGH", risks.items.some((i) => i.kind === "DOUBLE_CONFIRMED" && i.severity === "HIGH"))
   check("S11 no verified deposit → CONFIRMED_WITHOUT_DEPOSIT / HIGH", find("CONFIRMED_WITHOUT_DEPOSIT", S.s11)?.severity === "HIGH", find("CONFIRMED_WITHOUT_DEPOSIT", S.s11))
   // Each seed run adds 4 FAILURE entries (which can't be deleted), so derive the expected severity from the data.
   const recentFailures = await prisma.auditLog.count({

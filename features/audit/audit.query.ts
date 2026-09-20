@@ -6,7 +6,7 @@ import { computeEntryHash } from "@/lib/audit/chain"
 import type { AuditFilterInput } from "./audit.schema"
 import type {
   AuditLogPage, AuditFilterOptions, AuditStats, ChainIntegrityResult,
-} from "./audit.types"
+} from "@/features/audit/audit.types"
 
 const DEFAULT_PAGE_SIZE = 25
 
@@ -160,8 +160,32 @@ export async function verifyAuditChainIntegrity(): Promise<ChainIntegrityResult>
     expectedPreviousHash = entry.hash
   }
 
+  // MODULE 9 — tip anchor. The walk above proves the entries that EXIST are consistent, but it cannot see
+  // entries that are GONE from the end: delete the last N rows and every remaining link still verifies.
+  // AuditChainState records the tip that logAction() last wrote, so it must agree with the last row
+  // (and be 0 when the table is empty). Anyone truncating the trail must ALSO rewrite that row — which
+  // the restricted database role (prisma/scripts/create-restricted-role.sql) does not allow.
+  const state = await prisma.auditChainState.findUnique({ where: { id: 1 } })
+  const last = entries[entries.length - 1]
+  const actualSequence = last?.sequence ?? 0
+  const recordedSequence = state?.lastSequence ?? 0
+  const tipMatches = recordedSequence === actualSequence && (state?.lastHash ?? null) === (last?.hash ?? null)
+  if (!tipMatches) {
+    return {
+      isValid: false,
+      totalEntries: entries.length,
+      brokenAtSequence: Math.min(actualSequence, recordedSequence) + 1,
+      reason: recordedSequence > actualSequence
+        ? `Audit entries are missing from the end of the trail: the chain tip records entry #${recordedSequence}, but the last entry present is #${actualSequence}. ${recordedSequence - actualSequence} entr${recordedSequence - actualSequence === 1 ? "y was" : "ies were"} deleted.`
+        : "The chain tip record does not match the last audit entry — the tip or the trail has been altered.",
+      verifiedAt: new Date().toISOString(),
+      tip: { recordedSequence, actualSequence, matches: false },
+    }
+  }
+
   return {
     isValid: true,
+    tip: { recordedSequence, actualSequence, matches: true },
     totalEntries: entries.length,
     brokenAtSequence: null,
     reason: null,

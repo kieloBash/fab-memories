@@ -27,7 +27,7 @@
  *   S8   two PENDING bookings, same date, same coordinator
  *                                               → COORDINATOR_CONFLICT + DATE_CONTENTION (low)
  *   S9   cancellation requested 100 h ago       → CANCELLATION_PENDING (high)
- *   S10  two CONFIRMED events on one date       → DOUBLE_CONFIRMED   (deliberate rule violation)
+ *   S10  two CONFIRMED events on one date       → DOUBLE_CONFIRMED   (only on a database WITHOUT the Module 9 index; skipped otherwise)
  *   S11  CONFIRMED with no verified deposit     → CONFIRMED_WITHOUT_DEPOSIT (deliberate rule violation)
  *   +    4 FAILURE audit entries in the last hour → AUDIT_FAILURES
  *
@@ -291,15 +291,22 @@ async function scenarios() {
   await verifiedDeposit(s9.id, 15_000, hoursAgo(26 * 24))
   console.log("  ✅  S9   cancellation requested 100h ago")
 
-  // S10 — two CONFIRMED on one date (deliberate NFR-31 violation)
+  // S10 — two CONFIRMED on one date. Since Module 9 the DATABASE refuses this (partial unique index), so this
+  // scenario now only exists on databases WITHOUT the index; otherwise it is skipped and cleaned up.
+  let s10aId: string | null = null
   try {
     const s10a = await mkBooking({ client: "anna", type: EventType.DEBUT, date: day(95), status: BookingStatus.CONFIRMED, guests: 80, price: 65_000, plan: PaymentPlan.FULL, depositAmount: 20_000, depositVerifiedAt: hoursAgo(10 * 24), label: "S10a-double-confirmed" })
+    s10aId = s10a.id
     await verifiedDeposit(s10a.id, 20_000, hoursAgo(11 * 24))
     const s10b = await mkBooking({ client: "ben", type: EventType.DEBUT, date: day(95), status: BookingStatus.CONFIRMED, guests: 80, price: 65_000, plan: PaymentPlan.FULL, depositAmount: 20_000, depositVerifiedAt: hoursAgo(9 * 24), label: "S10b-double-confirmed" })
     await verifiedDeposit(s10b.id, 20_000, hoursAgo(10 * 24))
-    console.log("  ⚠️   S10  two CONFIRMED events on one date (intentional rule violation)")
+    console.log("  ⚠️   S10  two CONFIRMED events on one date (this database has NO one-per-date index)")
   } catch {
-    console.log("  ℹ️   S10  skipped — the database now rejects two confirmed events on one date. Good.")
+    if (s10aId) {
+      await prisma.payment.deleteMany({ where: { bookingId: s10aId } })
+      await prisma.booking.delete({ where: { id: s10aId } })
+    }
+    console.log("  ℹ️   S10  skipped — the database refuses two confirmed events on one date (Module 9 index). Good.")
   }
 
   // S11 — CONFIRMED without a verified deposit (deliberate rule violation)
