@@ -15,11 +15,15 @@ import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { useAdminDashboardSummary } from "@/features/reports"
 import { NeedsAttentionList } from "@/features/reports/components/needs-attention-list"
+import { RiskIndicatorsPanel } from "@/features/reports/components/risk-indicators-panel"
+import { RecentAuditFeed } from "@/features/reports/components/recent-audit-feed"
+import { fmtTime } from "@/features/reports/reports.format"
+import { Button } from "@/components/ui/button"
 import { PageHeader } from "@/components/ui/page-header"
 import { Badge } from "@/components/ui/badge"
 import {
   LayoutDashboard, CalendarDays, Clock, CreditCard,
-  Users, Store, ChevronRight, MapPin,
+  Users, Store, ChevronRight, MapPin, RefreshCw,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -45,7 +49,7 @@ const itemVariants = {
 
 export default function AdminDashboardPage() {
   const router = useRouter()
-  const { data: summary, isLoading } = useAdminDashboardSummary()
+  const { data: summary, isLoading, isFetching, refetch, dataUpdatedAt } = useAdminDashboardSummary()
 
   const today = new Date().toLocaleDateString("en-PH", {
     weekday: "long", month: "long", day: "numeric",
@@ -64,7 +68,25 @@ export default function AdminDashboardPage() {
       className="flex flex-col gap-6"
     >
       <motion.div variants={itemVariants}>
-        <PageHeader title="Dashboard" subtitle={today} icon={LayoutDashboard} />
+        <PageHeader
+          title="Dashboard"
+          subtitle={today}
+          icon={LayoutDashboard}
+          actions={
+            <>
+              <span className="flex items-center gap-1.5 text-[11px] text-text-muted" aria-live="polite" data-testid="last-updated">
+                <span className="relative flex h-2 w-2" aria-hidden="true">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                {dataUpdatedAt ? `Live · updated ${fmtTime(dataUpdatedAt)}` : "Loading…"}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => refetch()} disabled={isFetching} aria-label="Refresh dashboard">
+                <RefreshCw size={13} className={isFetching ? "animate-spin" : undefined} aria-hidden="true" /> Refresh
+              </Button>
+            </>
+          }
+        />
       </motion.div>
 
       {/* ── Stat cards ── */}
@@ -148,6 +170,11 @@ export default function AdminDashboardPage() {
         </button>
       </motion.div>
 
+      {/* ── Risk indicators (Module 8 — proactive risk mitigation) ── */}
+      <motion.div variants={itemVariants}>
+        <RiskIndicatorsPanel risks={summary?.risks ?? []} summary={summary?.riskSummary} isLoading={isLoading} />
+      </motion.div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
         {/* ── Needs attention ── */}
@@ -210,6 +237,11 @@ export default function AdminDashboardPage() {
           </div>
         </motion.div>
       </div>
+
+      {/* ── Recent audit activity (FR-58) ── */}
+      <motion.div variants={itemVariants}>
+        <RecentAuditFeed items={summary?.recentAudit ?? []} isLoading={isLoading} />
+      </motion.div>
     </motion.div>
   )
 }

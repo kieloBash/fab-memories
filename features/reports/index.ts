@@ -9,13 +9,13 @@ export {
   REPORT_TYPES, REPORT_LABELS, REPORT_DESCRIPTIONS, REPORT_ROLES, RISK_KIND_LABELS,
   RISK_THRESHOLDS, EXPORT_ROW_LIMIT, REPORT_TIMEZONE, isReportType,
   reportKeys, reportRoutes,
-} from "@/features/reports/reports.constants"
-export type { ReportType } from "@/features/reports/reports.constants"
+} from "./reports.constants"
+export type { ReportType } from "./reports.constants"
 
-export { reportFilterSchema, reportExportQuerySchema, parseReportFilters } from "@/features/reports/reports.schema"
-export type { ReportFilterInput, ReportFilterFormValues } from "@/features/reports/reports.schema"
+export { reportFilterSchema, reportExportQuerySchema, parseReportFilters } from "./reports.schema"
+export type { ReportFilterInput, ReportFilterFormValues } from "./reports.schema"
 
-export { manilaYmd, manilaToday, toYmd } from "@/features/reports/reports.dates"
+export { manilaYmd, manilaToday, toYmd } from "./reports.dates"
 
 export type {
   ReportMeta, CountItem,
@@ -26,7 +26,7 @@ export type {
   VendorReport, VendorReportRow, VendorGapRow, VendorAssignmentStatus,
   StaffReport, StaffReportRow, StaffCompliance, CoordinatorLoadRow,
   AuditReport, AuditReportRow, AnyReport,
-} from "@/features/reports/reports.types"
+} from "./reports.types"
 
-export { fetchAdminDashboardSummary } from "./reports.api"
-export { useAdminDashboardSummary } from "./reports.hooks"
+export { fetchAdminDashboardSummary, fetchReport, downloadReport } from "./reports.api"
+export { useAdminDashboardSummary, useRiskRegister, useReport, useExportReport } from "./reports.hooks"

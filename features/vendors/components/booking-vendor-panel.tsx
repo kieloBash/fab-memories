@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog"
 import {
   AlertTriangle, CheckCircle2, Phone, MessageCircle,
-  Plus, Trash2, UserCheck,
+  Plus, Receipt, Trash2, UserCheck,
 } from "lucide-react"
 import {
   useAssignVendor,
@@ -34,6 +34,21 @@ import { cn } from "@/lib/utils"
 
 const fmtDateShort = (iso: string) =>
   new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric" })
+
+type Assignment = NonNullable<ReturnType<typeof useBookingVendors>["data"]>[number]
+
+/**
+ * The update endpoint REPLACES contactedAt / confirmedAt / notes — any of them
+ * left out are set to null. So every update must resend the record's current
+ * values, changing only the field you mean to change. (Previously "Mark
+ * confirmed" sent confirmedAt alone and silently erased the contacted date
+ * and the note.)
+ */
+const currentRecord = (bv: Assignment) => ({
+  notes:       bv.notes ?? undefined,
+  contactedAt: bv.contactedAt ?? undefined,
+  confirmedAt: bv.confirmedAt ?? undefined,
+})
 
 interface BookingVendorPanelProps {
   booking: BookingWithRelations
@@ -54,6 +69,7 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
   const [selectedVend, setSelectedVend] = useState("")
   const [assignNote, setAssignNote] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [quoteTarget, setQuoteTarget] = useState<Assignment | null>(null)
 
   const requestedCategories = booking.vendorCategories ?? []
 
@@ -79,18 +95,26 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
     )
   }
 
-  const handleMarkContacted = (vendorId: string, alreadyContacted: boolean) => {
+  const handleMarkContacted = (bv: Assignment) => {
     updateStatus({
-      vendorId,
-      input: { contactedAt: alreadyContacted ? undefined : new Date().toISOString() },
+      vendorId: bv.vendorId,
+      input: { ...currentRecord(bv), contactedAt: bv.contactedAt ? undefined : new Date().toISOString() },
     })
   }
 
-  const handleMarkConfirmed = (vendorId: string, alreadyConfirmed: boolean) => {
+  const handleMarkConfirmed = (bv: Assignment) => {
     updateStatus({
-      vendorId,
-      input: { confirmedAt: alreadyConfirmed ? undefined : new Date().toISOString() },
+      vendorId: bv.vendorId,
+      input: { ...currentRecord(bv), confirmedAt: bv.confirmedAt ? undefined : new Date().toISOString() },
     })
+  }
+
+  /** Module 8 (FR-54) — record, change or clear the vendor's quotation. */
+  const handleSaveQuotation = (bv: Assignment, amount: number | null, note: string | null) => {
+    updateStatus(
+      { vendorId: bv.vendorId, input: { ...currentRecord(bv), quotationAmount: amount, quotationNote: note } },
+      { onSuccess: () => setQuoteTarget(null) },
+    )
   }
 
   return (
@@ -331,7 +355,7 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
             */}
             <div className="grid grid-cols-2 gap-1.5 pt-2 border-t border-border">
               <button
-                onClick={() => handleMarkContacted(bv.vendorId, !!bv.contactedAt)}
+                onClick={() => handleMarkContacted(bv)}
                 className={cn(
                   "flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all text-center",
                   bv.contactedAt
@@ -346,7 +370,7 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
               </button>
 
               <button
-                onClick={() => handleMarkConfirmed(bv.vendorId, !!bv.confirmedAt)}
+                onClick={() => handleMarkConfirmed(bv)}
                 className={cn(
                   "flex items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[11px] font-medium transition-all text-center",
                   bv.confirmedAt
@@ -361,6 +385,26 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
               </button>
             </div>
 
+            {/* ── Quotation (Module 8 · FR-54) ── */}
+            <div className="flex items-center justify-between gap-2 rounded-lg border border-border bg-white px-3 py-2">
+              <div className="min-w-0">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-text-muted">Quotation</p>
+                {bv.quotationAmount !== null ? (
+                  <>
+                    <p className="text-[13px] font-semibold text-text-main">
+                      ₱{Number(bv.quotationAmount).toLocaleString("en-PH", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}
+                    </p>
+                    {bv.quotationNote && <p className="truncate text-[11px] text-text-muted" title={bv.quotationNote}>{bv.quotationNote}</p>}
+                  </>
+                ) : (
+                  <p className="text-[12px] text-text-muted">Not recorded</p>
+                )}
+              </div>
+              <Button variant="outline" size="xs" onClick={() => setQuoteTarget(bv)}>
+                <Receipt size={11} aria-hidden="true" /> {bv.quotationAmount !== null ? "Edit" : "Record"}
+              </Button>
+            </div>
+
             {/* ── Copy brief link — own row, full width, never competes for space ── */}
             <CopyVendorBriefButton
               bookingId={bookingId}
@@ -371,6 +415,62 @@ export function BookingVendorPanel({ booking }: BookingVendorPanelProps) {
           </div>
         ))}
       </div>
+
+      <QuotationDialog
+        key={quoteTarget?.id ?? "closed"}
+        target={quoteTarget}
+        onClose={() => setQuoteTarget(null)}
+        onSave={handleSaveQuotation}
+      />
     </div>
+  )
+}
+
+function QuotationDialog({
+  target, onClose, onSave,
+}: {
+  target: Assignment | null
+  onClose: () => void
+  onSave: (bv: Assignment, amount: number | null, note: string | null) => void
+}) {
+  const [amount, setAmount] = useState(target?.quotationAmount !== null && target?.quotationAmount !== undefined ? String(Number(target.quotationAmount)) : "")
+  const [note, setNote] = useState(target?.quotationNote ?? "")
+
+  // Validate the TYPED TEXT, not the float: 10.12 * 100 === 1011.9999999999999 in JavaScript,
+  // so arithmetic checks wrongly reject perfectly good amounts like 10.12 or 1.15.
+  const trimmed = amount.trim()
+  const parsed = trimmed === "" ? null : Number(trimmed)
+  const error =
+    trimmed === "" ? null
+    : !/^\d+(\.\d+)?$/.test(trimmed) ? "Enter a valid amount (0 or more)."
+    : /\.\d{3,}/.test(trimmed) ? "Use at most 2 decimal places."
+    : parsed! > 99_999_999.99 ? "That amount is too large."
+    : null
+
+  return (
+    <Dialog open={!!target} onOpenChange={(open) => { if (!open) onClose() }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader><DialogTitle>Quotation — {target?.vendor.name}</DialogTitle></DialogHeader>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <Label htmlFor="quotation-amount">Amount (PHP)</Label>
+            <Input
+              id="quotation-amount" type="number" inputMode="decimal" min="0" step="0.01"
+              value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 25000" aria-invalid={!!error}
+            />
+            {error && <p role="alert" className="text-[12px] text-red-600">{error}</p>}
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="quotation-note">Note <span className="text-[11px] text-text-muted">(optional)</span></Label>
+            <Textarea id="quotation-note" rows={2} maxLength={500} value={note} onChange={(e) => setNote(e.target.value)} placeholder="What the quotation covers…" />
+          </div>
+          <p className="text-[11px] text-text-muted">Leave the amount empty and save to clear the quotation.</p>
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
+            <Button className="flex-1" disabled={!!error || !target} onClick={() => target && onSave(target, parsed, note.trim() || null)}>Save quotation</Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   )
 }

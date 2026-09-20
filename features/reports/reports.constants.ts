@@ -101,11 +101,13 @@ export const RISK_KIND_LABELS = {
 
 export const reportKeys = {
   dashboard: ["reports-dashboard"] as const,
+  risks:     ["reports-risks"] as const,
   report:    (type: ReportType, filters: unknown) => ["reports", type, filters] as const,
 }
 
 export const reportRoutes = {
   dashboard: "/reports/dashboard",
+  risks:     "/reports/risks",
   report:    (type: ReportType) => `/reports/${type}`,
   export:    (type: ReportType) => `/reports/${type}/export`,
 } as const

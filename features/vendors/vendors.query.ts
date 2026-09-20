@@ -8,7 +8,7 @@ import type {
   CreateVendorInput,
   UpdateBookingVendorInput,
   UpdateVendorInput,
-} from "@/features/vendors/vendors.schema"
+} from "./vendors.schema"
 
 // ── Vendor CRUD ───────────────────────────────────────────────
 

@@ -31,6 +31,7 @@ const coordinatorNavItems = [
   { href: "/staff/coordinator/payments", label: "Payments", icon: "CreditCard" },
   // { href: "/staff/coordinator/vendors", label: "Vendors", icon: "Store" },
   { href: "/staff/coordinator/staff", label: "Staff scheduling", icon: "Users" },
+  { href: "/staff/coordinator/reports", label: "Reports", icon: "BarChart3" },
   // { href: "/staff/coordinator/documents", label: "Documents",       icon: "FileText" },
 ];
 
