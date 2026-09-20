@@ -29,6 +29,9 @@ export interface BookingVendor {
   notes:       string | null
   contactedAt: string | null
   confirmedAt: string | null
+  /** Prisma Decimal — serialised to a string in JSON responses (e.g. "12500"). */
+  quotationAmount: string | null
+  quotationNote:   string | null
   createdAt:   string
   updatedAt:   string
   vendor:      Vendor

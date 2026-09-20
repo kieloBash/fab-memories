@@ -8,7 +8,7 @@ import type {
   CreateVendorInput,
   UpdateBookingVendorInput,
   UpdateVendorInput,
-} from "./vendors.schema"
+} from "@/features/vendors/vendors.schema"
 
 // ── Vendor CRUD ───────────────────────────────────────────────
 
@@ -145,6 +145,10 @@ export async function updateBookingVendorRecord(
       notes: input.notes ?? null,
       contactedAt: input.contactedAt ? new Date(input.contactedAt) : null,
       confirmedAt: input.confirmedAt ? new Date(input.confirmedAt) : null,
+      // MODULE 8 — quotation fields are only touched when explicitly sent
+      // (undefined = leave as is, null = clear).
+      ...(input.quotationAmount !== undefined && { quotationAmount: input.quotationAmount }),
+      ...(input.quotationNote   !== undefined && { quotationNote:   input.quotationNote }),
     },
     include: { vendor: true },
   })

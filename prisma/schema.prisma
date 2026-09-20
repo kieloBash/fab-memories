@@ -250,6 +250,9 @@ model BookingVendor {
   createdAt   DateTime       @default(now())
   updatedAt   DateTime       @updatedAt
 
+  quotationAmount Decimal? @db.Decimal(10, 2)
+  quotationNote   String?
+
   @@unique([bookingId, vendorId])
   @@index([bookingId])
   @@index([vendorId])

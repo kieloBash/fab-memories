@@ -30,6 +30,13 @@ export const updateBookingVendorSchema = z.object({
   notes:       z.string().max(500).optional(),
   contactedAt: z.string().optional(),  // ISO date string
   confirmedAt: z.string().optional(),  // ISO date string
+
+  // MODULE 8 (FR-54) — service quotation recorded against the assignment.
+  // Entered by staff for now (vendors have no login yet). `null` clears it;
+  // omitting the field leaves the stored value untouched.
+  quotationAmount: z.number().nonnegative("Amount cannot be negative")
+                    .max(99_999_999.99).multipleOf(0.01).nullable().optional(),
+  quotationNote:   z.string().max(500).nullable().optional(),
 })
 
 export const vendorFilterSchema = z.object({

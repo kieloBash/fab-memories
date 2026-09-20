@@ -1,11 +1,18 @@
 // features/reports/reports.query.ts
-"use server"
+//
+// NOTE: the "use server" directive that used to sit at the top of this file
+// was removed on purpose. It turned every export into a callable server
+// action with no auth check. This module is imported only by route
+// handlers, which enforce the role.
 
-import { prisma } from "@/lib/prisma"
 import { getStaffingRecommendation } from "@/features/staff-assignments/staff-assignments.constants"
+import { prisma } from "@/lib/prisma"
+import { addDays, manilaToday } from "./reports.dates"
+import { getRiskIndicators } from "./reports.risk"
 import type {
   AdminDashboardSummary,
   NeedsAttentionItem,
+  RecentAuditItem,
   UpcomingEventSummary,
 } from "./reports.types"
 
@@ -14,17 +21,31 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   BIRTHDAY: "Birthday", OTHER: "Event",
 }
 
+const RECENT_AUDIT_LIMIT = 8
+const DASHBOARD_RISK_LIMIT = 8
+
 /**
  * Admin dashboard summary (FR-58) — computed server-side in a small
  * number of queries rather than fetching every booking/payment and
- * filtering client-side (which is what the previous dashboard did).
- * The "upcoming bookings" query below is reused for three different
- * derived stats (staffing compliance, vendor coverage, this-week list)
- * to avoid running it three times.
+ * filtering client-side. The "upcoming bookings" query below is reused
+ * for three different derived stats (staffing compliance, vendor
+ * coverage, this-week list) to avoid running it three times.
+ *
+ * MODULE 8 CHANGES
+ *  + recentAudit  — latest business activity (report views excluded, so the
+ *                   feed isn't dominated by people looking at the feed)
+ *  + risks / riskSummary — rule-based proactive risk indicators
+ *  + FIX: "upcoming" used `eventDate >= now`. eventDate is a DATE stored at
+ *    UTC midnight, so an event happening TODAY compared as "in the past" and
+ *    vanished from the dashboard on its own event day. It now compares
+ *    against Manila's calendar date.
+ *  + FIX: upcomingThisWeekCount was computed AFTER the list was sliced to 6,
+ *    so it could never exceed 6. It now counts the full set.
  */
 export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary> {
   const now = new Date()
-  const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000)
+  const today = manilaToday(now)
+  const weekFromNow = addDays(today, 7)
 
   const [
     activeBookingsCount,
@@ -34,6 +55,8 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
     submittedPayments,
     cancellationRequests,
     upcomingBookings,
+    recentAuditRows,
+    riskReport,
   ] = await Promise.all([
     prisma.booking.count({ where: { status: "CONFIRMED" } }),
     prisma.booking.count({ where: { status: "PENDING" } }),
@@ -72,12 +95,12 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
       take: 5,
     }),
 
-    // Upcoming (future, active) bookings — reused for staffing compliance,
-    // vendor coverage, and the "this week" list below.
+    // Upcoming (today onward, active) bookings — reused for staffing
+    // compliance, vendor coverage, and the "this week" list below.
     prisma.booking.findMany({
       where: {
         status: { in: ["CONFIRMED", "PENDING"] },
-        eventDate: { gte: now },
+        eventDate: { gte: today },
       },
       select: {
         id: true, eventType: true, eventDate: true, venue: true, status: true, guestCount: true,
@@ -88,6 +111,17 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
       },
       orderBy: { eventDate: "asc" },
     }),
+
+    // Recent activity feed (FR-58) — excludes report VIEW entries
+    prisma.auditLog.findMany({
+      where: { NOT: { action: "VIEW", module: "REPORT" } },
+      orderBy: { sequence: "desc" },
+      take: RECENT_AUDIT_LIMIT,
+      include: { user: { select: { fullName: true } } },
+    }),
+
+    // Proactive risk indicators
+    getRiskIndicators({ basePath: "/staff/admin" }),
   ])
 
   // ── Merge "needs attention" from three sources ──────────────────
@@ -137,8 +171,8 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
   }).length
 
   // ── This week's events ───────────────────────────────────────────
-  const upcomingEvents: UpcomingEventSummary[] = upcomingBookings
-    .filter((b) => new Date(b.eventDate) <= weekFromNow)
+  const weekBookings = upcomingBookings.filter((b) => b.eventDate <= weekFromNow)
+  const upcomingEvents: UpcomingEventSummary[] = weekBookings
     .slice(0, 6)
     .map((b) => ({
       bookingId:  b.id,
@@ -149,16 +183,29 @@ export async function getAdminDashboardSummary(): Promise<AdminDashboardSummary>
       clientName: b.client.fullName,
     }))
 
-  const upcomingThisWeekCount = upcomingEvents.length
+  const recentAudit: RecentAuditItem[] = recentAuditRows.map((r) => ({
+    id:          r.id,
+    sequence:    r.sequence,
+    createdAt:   r.createdAt.toISOString(),
+    userName:    r.user?.fullName ?? null,
+    action:      r.action,
+    module:      r.module,
+    description: r.description,
+    status:      r.status,
+  }))
 
   return {
     activeBookingsCount,
     pendingRequestsCount,
     paymentsToVerifyCount,
-    upcomingThisWeekCount,
+    upcomingThisWeekCount: weekBookings.length,   // FIX: was capped at 6 (the list length)
     understaffedCount,
     vendorGapCount,
     needsAttention,
     upcomingEvents,
+    generatedAt: now.toISOString(),
+    recentAudit,
+    risks:       riskReport.items.slice(0, DASHBOARD_RISK_LIMIT),
+    riskSummary: riskReport.summary,
   }
 }

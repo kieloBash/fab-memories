@@ -61,6 +61,8 @@ export default function SignUpPage() {
     e.preventDefault()
     setFormError(null)
 
+    console.log("creating")
+
     const { error } = await signUp.password({
       emailAddress: email,
       password,
@@ -68,6 +70,8 @@ export default function SignUpPage() {
       lastName,
       username: firstName + lastName
     })
+
+    console.log({ error })
 
     if (error) {
       setFormError(error.message ?? "Couldn't create your account. Please try again.")

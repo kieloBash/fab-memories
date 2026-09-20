@@ -1,1 +1,2 @@
-2. UI active for sidebar
+- UI active for sidebar
+- fix register
