@@ -49,7 +49,7 @@ export async function POST(req: Request) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "VENDOR",
-    description: `Admin "${actor.fullName}" added vendor "${parsed.data.name}" (${parsed.data.category})`,
+    description: `Admin added vendor (${parsed.data.category})`,
     metadata:    { vendorId: vendor.id, category: parsed.data.category },
   })
 

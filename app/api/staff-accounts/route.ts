@@ -98,8 +98,8 @@ export async function POST(req: Request) {
             userId: actor?.id,
             action: 'CREATE',
             module: 'USER_MANAGEMENT',
-            description: `Admin created ${role} account for "${username}"`,
-            metadata: { targetUserId: dbUser.id, targetUsername: username, role },
+            description: `Admin created ${role} account`,
+            metadata: { targetUserId: dbUser.id, role },
         });
 
         return NextResponse.json(dbUser, { status: 201 });

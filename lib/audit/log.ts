@@ -5,6 +5,7 @@ import { AuditWriteError } from '@/lib/domain-errors';
 import type { Tx } from '@/lib/db';
 import { prisma } from '@/lib/prisma';
 import { computeEntryHash } from './chain';
+import { redactMetadata, redactText } from '@/lib/audit/redact';
 
 export interface AuditEntryInput {
     userId?: string | null;
@@ -30,6 +31,8 @@ export interface AuditEntryInput {
 export async function writeAuditEntry(tx: Tx, entry: AuditEntryInput): Promise<void> {
     const userId = entry.userId ?? null;
     const status = entry.status ?? 'SUCCESS';
+    // Personal data never enters the (immutable) trail — redact BEFORE hashing so the stored values are what was hashed.
+    const description = redactText(entry.description);
 
     const rows = await tx.$queryRaw<{ lastHash: string | null; lastSequence: number }[]>`
         SELECT "lastHash", "lastSequence" FROM "AuditChainState" WHERE id = 1 FOR UPDATE
@@ -42,7 +45,7 @@ export async function writeAuditEntry(tx: Tx, entry: AuditEntryInput): Promise<v
     // Normalise metadata through a JSON round-trip BEFORE hashing: JSON.stringify drops
     // keys whose value is `undefined`, and Postgres jsonb would drop them on the way in —
     // hashing the un-normalised object would later look like tampering.
-    const metadataValue = JSON.parse(JSON.stringify(entry.metadata ?? {}));
+    const metadataValue = redactMetadata(JSON.parse(JSON.stringify(entry.metadata ?? {})));
 
     const hash = computeEntryHash({
         sequence,
@@ -50,7 +53,7 @@ export async function writeAuditEntry(tx: Tx, entry: AuditEntryInput): Promise<v
         userId,
         action: entry.action,
         module: entry.module,
-        description: entry.description,
+        description,
         status,
         metadata: metadataValue,
         createdAt: createdAt.toISOString(),
@@ -61,7 +64,7 @@ export async function writeAuditEntry(tx: Tx, entry: AuditEntryInput): Promise<v
             userId,
             action: entry.action,
             module: entry.module,
-            description: entry.description,
+            description,
             status,
             metadata: metadataValue as any,
             sequence,
@@ -91,8 +94,8 @@ export async function recordAuditFailure(entry: AuditEntryInput, error: unknown,
                 userId: entry.userId ?? null,
                 action: entry.action,
                 module: entry.module,
-                description: entry.description.slice(0, 1000),
-                error: String((error as any)?.message ?? error).slice(0, 1000),
+                description: redactText(entry.description).slice(0, 1000),
+                error: redactText(String((error as any)?.message ?? error)).slice(0, 1000),
                 attempts,
             },
         });

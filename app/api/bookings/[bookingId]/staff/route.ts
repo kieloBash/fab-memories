@@ -116,7 +116,7 @@ export async function POST(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "STAFF_SCHEDULE",
-    description: `${actor.role} "${actor.fullName}" assigned coordinator to booking ${bookingId} (${parsed.data.taskRole}${parsed.data.isBackup ? ", backup" : ""})`,
+    description: `${actor.role} assigned coordinator to booking ${bookingId} (${parsed.data.taskRole}${parsed.data.isBackup ? ", backup" : ""})`,
     metadata:    {
       bookingId,
       coordinatorId: parsed.data.coordinatorId,

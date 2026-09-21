@@ -1,3 +1,4 @@
+import { auditChanges } from "@/lib/audit/redact"
 import type { Role } from '@/app/generated/prisma/client';
 import { logAction } from '@/lib/audit/log';
 import { getCurrentDbUser, requireAdmin } from '@/lib/clerk/auth';
@@ -48,8 +49,8 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
         userId: actor?.id,
         action: 'UPDATE',
         module: 'USER_MANAGEMENT',
-        description: `Admin updated account "${existing.username}"`,
-        metadata: { targetUserId: id, changes: body },
+        description: `Admin updated an account`,
+        metadata: { targetUserId: id, changes: auditChanges(body) },
     });
 
     return NextResponse.json(updated);
@@ -88,7 +89,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         userId: actor?.id,
         action: 'DELETE',
         module: 'USER_MANAGEMENT',
-        description: `Admin deactivated account "${existing.username}"`,
+        description: `Admin deactivated an account`,
         metadata: { targetUserId: id },
     });
 

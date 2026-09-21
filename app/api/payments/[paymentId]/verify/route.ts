@@ -53,7 +53,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const result = await flagPaymentRecord(paymentId, actor.id, verificationNote, tx)
       audit({
             userId: actor.id, action: "UPDATE", module: "PAYMENT",
-            description: `${actor.role} "${actor.fullName}" flagged ${existing.paymentType.toLowerCase()} payment`,
+            description: `${actor.role} flagged ${existing.paymentType.toLowerCase()} payment`,
             metadata: { paymentId, bookingId: existing.bookingId },
           })
       return result
@@ -73,7 +73,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const result = await verifyDepositPaymentRecord(paymentId, existing.bookingId, actor.id, verificationNote, tx)
       audit({
             userId: actor.id, action: "VERIFY", module: "PAYMENT",
-            description: `${actor.role} "${actor.fullName}" verified deposit — booking ${existing.bookingId} CONFIRMED`,
+            description: `${actor.role} verified deposit — booking ${existing.bookingId} CONFIRMED`,
             metadata: { paymentId, bookingId: existing.bookingId },
           })
       return result
@@ -91,7 +91,7 @@ export async function PATCH(req: Request, { params }: Params) {
       const result = await verifyFullBalancePaymentRecord(paymentId, actor.id, verificationNote, tx)
       audit({
             userId: actor.id, action: "VERIFY", module: "PAYMENT",
-            description: `${actor.role} "${actor.fullName}" verified full balance payment for booking ${existing.bookingId}`,
+            description: `${actor.role} verified full balance payment for booking ${existing.bookingId}`,
             metadata: { paymentId, bookingId: existing.bookingId },
           })
       return result
@@ -132,7 +132,7 @@ export async function PATCH(req: Request, { params }: Params) {
     paymentId, targetInstallment.id, actor.id, verificationNote, tx)
       audit({
           userId: actor.id, action: "VERIFY", module: "PAYMENT",
-          description: `${actor.role} "${actor.fullName}" verified installment #${targetInstallment.order} for booking ${existing.bookingId}`,
+          description: `${actor.role} verified installment #${targetInstallment.order} for booking ${existing.bookingId}`,
           metadata: { paymentId, bookingId: existing.bookingId, installmentId: targetInstallment.id },
         })
       return result

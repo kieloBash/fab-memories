@@ -47,7 +47,7 @@ export async function PATCH(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "UPDATE",
     module:      "VENDOR",
-    description: `Admin "${actor.fullName}" updated vendor "${existing.name}"`,
+    description: `Admin updated a vendor`,
     metadata:    { vendorId },
   })
 
@@ -70,7 +70,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "DELETE",
     module:      "VENDOR",
-    description: `Admin "${actor.fullName}" deleted vendor "${existing.name}"`,
+    description: `Admin deleted a vendor`,
     metadata:    { vendorId },
   })
 

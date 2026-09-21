@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "PAYMENT",
-    description: `${actor.role} "${actor.fullName}" recorded manual ${parsed.data.paymentType} payment of ₱${parsed.data.amount} for booking ${parsed.data.bookingId}`,
+    description: `${actor.role} recorded manual ${parsed.data.paymentType} payment of ₱${parsed.data.amount} for booking ${parsed.data.bookingId}`,
     metadata: {
       bookingId:    parsed.data.bookingId,
       paymentType:  parsed.data.paymentType,

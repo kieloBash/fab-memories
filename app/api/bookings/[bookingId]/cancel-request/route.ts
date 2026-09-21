@@ -54,8 +54,8 @@ export async function POST(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "UPDATE",
     module:      "BOOKING",
-    description: `Client "${actor.fullName}" requested cancellation of booking`,
-    metadata:    { bookingId, reason: parsed.data.reason },
+    description: `Client requested cancellation of booking`,
+    metadata:    { bookingId, reasonProvided: true },
   })
       return result
     }),

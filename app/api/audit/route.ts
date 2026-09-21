@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     userId: actor?.id ?? null,
     action: "VIEW",
     module: "REPORT",
-    description: `${actor?.fullName ?? "Admin"} viewed the audit trail`,
+    description: `${actor?.role ?? "Admin"} viewed the audit trail`,
     metadata: { filters: parsed.data },
   })
 

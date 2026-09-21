@@ -176,6 +176,27 @@ async function main() {
   r = await body(await termsPATCH(json("PATCH", { staffNote: "persisted" }), P({ bookingId: guarded.id })))
   check("the same action with a real user succeeds", r.status === 200 && (await prisma.booking.findUnique({ where: { id: guarded.id } }))?.staffNote === "persisted", r)
 
+  section("Personal data stays OUT of the audit trail (real routes)")
+  as("CLIENT", "client_anna")
+  const pii = (await mk("PENDING", { client: anna })).b
+  r = await body(await bookingPATCH(json("PATCH", { clientPhone: "09171234567", notes: "Call after 5pm please", venue: "Secret Garden Manila", guestCount: 55 }), P({ bookingId: pii.id })))
+  check("client edits phone, notes and venue → 200", r.status === 200, r)
+  const editRow = await prisma.auditLog.findFirst({ where: { metadata: { path: ["bookingId"], equals: pii.id }, action: "UPDATE", status: "SUCCESS" }, orderBy: { sequence: "desc" } })
+  const editText = JSON.stringify(editRow)
+  check("audit entry exists", !!editRow)
+  check("…no phone number, note text or venue text in it", !/09171234567|Call after 5pm|Secret Garden/.test(editText), editRow?.metadata)
+  check("…the client's name is not in the description (the viewer resolves it from the user id)", !!editRow && !editRow.description.includes(a.fullName) && editRow.description === "Client updated their booking", editRow?.description)
+  check("…but it still records WHICH fields changed and the business value", JSON.stringify((editRow?.metadata as any)?.changes?.fields) === JSON.stringify(["clientPhone", "guestCount", "notes", "venue"]) && (editRow?.metadata as any)?.changes?.values?.guestCount === 55, (editRow?.metadata as any)?.changes)
+
+  const conf = (await mk("CONFIRMED", { deposit: "VERIFIED", client: anna })).b
+  r = await body(await cancelRequestPOST(json("POST", { reason: "Family emergency, please call 09179998888 or mom@example.com" }), P({ bookingId: conf.id })))
+  check("client requests cancellation with a free-text reason → 200", r.status === 200, r)
+  const canRow = await prisma.auditLog.findFirst({ where: { metadata: { path: ["bookingId"], equals: conf.id }, action: "UPDATE", status: "SUCCESS" }, orderBy: { sequence: "desc" } })
+  check("…the reason text, phone and e-mail are not in the audit entry", !!canRow && !/Family emergency|09179998888|mom@example/.test(JSON.stringify(canRow)) && (canRow.metadata as any).reasonProvided === true, canRow?.metadata)
+  check("…yet the reason is still on the booking record (where it can be corrected or erased)", /Family emergency/.test((await prisma.booking.findUnique({ where: { id: conf.id } }))?.cancellationRequestReason ?? ""))
+  const chainOk = await prisma.$queryRaw<{ n: number }[]>`SELECT count(*)::int AS n FROM "AuditLog"`
+  check("(the trail kept growing normally)", chainOk[0].n > 0)
+
   section("GET /api/integrity")
   as()
   check("signed out → 403", (await integrityGET()).status === 403)

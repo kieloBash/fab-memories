@@ -73,7 +73,7 @@ export function peso(n: number): string {
 export function describeFilters(filters: ReportFilterInput): string {
   const parts = Object.entries(filters)
     .filter(([key, v]) => v !== undefined && v !== "" && key !== "page" && key !== "pageSize")
-    .map(([key, v]) => `${key} ${String(v)}`)
+    .map(([key, v]) => (key === "search" ? "a search term" : `${key} ${String(v)}`))   // free text may contain names — never echo it
   return parts.length ? parts.join(", ") : "no filters"
 }
 

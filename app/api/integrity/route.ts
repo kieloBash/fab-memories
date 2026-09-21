@@ -17,7 +17,7 @@ export async function GET() {
 
   await logReportView({
     userId: actor.id,
-    description: `${actor.fullName} viewed the system integrity checks (${report.overall})`,
+    description: `${actor.role} viewed the system integrity checks (${report.overall})`,
     metadata: { overall: report.overall, checks: Object.fromEntries(report.checks.map((c) => [c.id, c.status])) },
   })
 

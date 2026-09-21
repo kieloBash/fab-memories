@@ -102,7 +102,7 @@ export async function POST(req: Request) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "BOOKING",
-    description: `Client "${actor.fullName}" submitted a booking request for ${parsed.data.eventDate}`,
+    description: `Client submitted a booking request for ${parsed.data.eventDate}`,
     metadata:    {
       bookingId:    booking.id,
       packageId:    parsed.data.packageId,

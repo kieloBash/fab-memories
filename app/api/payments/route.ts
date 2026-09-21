@@ -99,7 +99,7 @@ export async function POST(req: Request) {
     userId: actor.id,
     action: "CREATE",
     module: "PAYMENT",
-    description: `Client "${actor.fullName}" submitted ${parsed.data.paymentType.toLowerCase()} proof for booking ${parsed.data.bookingId}`,
+    description: `Client submitted ${parsed.data.paymentType.toLowerCase()} proof for booking ${parsed.data.bookingId}`,
     metadata: {
       paymentId:   result.id,
       bookingId:   parsed.data.bookingId,

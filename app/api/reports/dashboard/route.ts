@@ -27,7 +27,7 @@ export async function GET() {
   if (actor) {
     await logReportView({
       userId: actor.id,
-      description: `${actor.fullName} viewed the operational dashboard`,
+      description: `${actor.role} viewed the operational dashboard`,
     })
   }
 

@@ -74,7 +74,7 @@ export async function PATCH(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "UPDATE",
     module:      "BOOKING",
-    description: `${actor.role} "${actor.fullName}" set contract terms for booking ${bookingId}`,
+    description: `${actor.role} set contract terms for booking ${bookingId}`,
     metadata:    {
       bookingId,
       agreedPrice:   parsed.data.agreedPrice,

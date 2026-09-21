@@ -95,7 +95,7 @@ export async function POST(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "VENDOR",
-    description: `${actor.role} "${actor.fullName}" assigned vendor to booking ${bookingId}`,
+    description: `${actor.role} assigned vendor to booking ${bookingId}`,
     metadata:    { bookingId, vendorId: parsed.data.vendorId, conflicts },
   })
 

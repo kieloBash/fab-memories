@@ -26,7 +26,7 @@ export async function GET() {
     userId: actor?.id ?? null,
     action: "VIEW",
     module: "REPORT",
-    description: `${actor?.fullName ?? "Admin"} ran a full audit chain integrity check — result: ${result.isValid ? "VALID" : "BROKEN"}`,
+    description: `${actor?.role ?? "Admin"} ran a full audit chain integrity check — result: ${result.isValid ? "VALID" : "BROKEN"}`,
     status: result.isValid ? "SUCCESS" : "FAILURE",
     metadata: {
       totalEntries: result.totalEntries,

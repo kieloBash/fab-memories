@@ -1,5 +1,6 @@
 // app/api/bookings/[bookingId]/vendors/[vendorId]/route.ts
 
+import { auditChanges } from "@/lib/audit/redact"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { logAction } from "@/lib/audit/log"
 import { updateBookingVendorSchema } from "@/features/vendors/vendors.schema"
@@ -36,8 +37,8 @@ export async function PATCH(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "UPDATE",
     module:      "VENDOR",
-    description: `${actor.role} "${actor.fullName}" updated vendor assignment for booking ${bookingId}`,
-    metadata:    { bookingId, vendorId, changes: parsed.data },
+    description: `${actor.role} updated vendor assignment for booking ${bookingId}`,
+    metadata:    { bookingId, vendorId, changes: auditChanges(parsed.data) },
   })
 
   return NextResponse.json(updated)
@@ -61,7 +62,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "DELETE",
     module:      "VENDOR",
-    description: `${actor.role} "${actor.fullName}" removed vendor from booking ${bookingId}`,
+    description: `${actor.role} removed vendor from booking ${bookingId}`,
     metadata:    { bookingId, vendorId },
   })
 

@@ -1,5 +1,6 @@
 // app/api/bookings/[bookingId]/staff/[assignmentId]/route.ts
 
+import { auditChanges } from "@/lib/audit/redact"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { logAction } from "@/lib/audit/log"
 import { updateStaffAssignmentSchema } from "@/features/staff-assignments/staff-assignments.schema"
@@ -37,8 +38,8 @@ export async function PATCH(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "UPDATE",
     module:      "STAFF_SCHEDULE",
-    description: `${actor.role} "${actor.fullName}" updated staff assignment for booking ${bookingId}`,
-    metadata:    { bookingId, assignmentId, changes: parsed.data },
+    description: `${actor.role} updated staff assignment for booking ${bookingId}`,
+    metadata:    { bookingId, assignmentId, changes: auditChanges(parsed.data) },
   })
 
   return NextResponse.json(updated)
@@ -62,7 +63,7 @@ export async function DELETE(_req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "DELETE",
     module:      "STAFF_SCHEDULE",
-    description: `${actor.role} "${actor.fullName}" removed a coordinator from booking ${bookingId}`,
+    description: `${actor.role} removed a coordinator from booking ${bookingId}`,
     metadata:    { bookingId, assignmentId },
   })
 

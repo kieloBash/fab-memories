@@ -100,7 +100,7 @@ export async function POST(req: Request, { params }: Params) {
     userId:      actor.id,
     action:      "CREATE",
     module:      "PAYMENT",
-    description: `Admin "${actor.fullName}" set installment schedule (${result.count} new installments) for booking ${bookingId}`,
+    description: `Admin set installment schedule (${result.count} new installments) for booking ${bookingId}`,
     metadata:    { bookingId, count: result.count },
   })
       return result

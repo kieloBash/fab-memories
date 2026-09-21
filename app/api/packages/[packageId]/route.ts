@@ -1,5 +1,6 @@
 // app/api/packages/[packageId]/route.ts
 
+import { auditChanges } from "@/lib/audit/redact"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
 import { logAction } from "@/lib/audit/log"
 import { updatePackageSchema } from "@/features/packages/packages.schema"
@@ -69,7 +70,7 @@ export async function PATCH(req: Request, { params }: Params) {
     action: "UPDATE",
     module: "BOOKING",
     description: `Admin updated package "${existing.name}"`,
-    metadata: { packageId, changes: parsed.data },
+    metadata: { packageId, changes: auditChanges(parsed.data) },
   })
 
   return NextResponse.json(updated)

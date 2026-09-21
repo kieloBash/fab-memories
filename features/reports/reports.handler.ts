@@ -76,7 +76,7 @@ export async function handleReportGet(req: Request, type: ReportType): Promise<N
     console.error(`[reports] ${type} report failed`, err)
     await logReportFailure({
       userId: actor.id,
-      description: `${actor.role} "${actor.fullName}" — ${def.label} report failed to generate`,
+      description: `${actor.role} — ${def.label} report failed to generate`,
       metadata: { report: type, filters: withoutPaging(filters) },
     })
     return NextResponse.json({ error: "Failed to generate the report" }, { status: 500 })
@@ -84,7 +84,7 @@ export async function handleReportGet(req: Request, type: ReportType): Promise<N
 
   await logReportView({
     userId: actor.id,
-    description: `${actor.role} "${actor.fullName}" viewed the ${def.label} report (${describeFilters(filters)})`,
+    description: `${actor.role} viewed the ${def.label} report (${describeFilters(filters)})`,
     metadata: {
       report: type,
       filters: withoutPaging(filters),
@@ -131,7 +131,7 @@ export async function handleReportExport(req: Request, rawType: string): Promise
     console.error(`[reports] ${type} export failed`, err)
     await logReportFailure({
       userId: actor.id,
-      description: `${actor.role} "${actor.fullName}" — ${def.label} report export failed`,
+      description: `${actor.role} — ${def.label} report export failed`,
       metadata: { report: type, filters: withoutPaging(filters) },
     })
     return NextResponse.json({ error: "Failed to export the report" }, { status: 500 })
@@ -147,7 +147,7 @@ export async function handleReportExport(req: Request, rawType: string): Promise
 
   await logReportExport({
     userId: actor.id,
-    description: `${actor.role} "${actor.fullName}" exported the ${def.label} report${table.key ? ` (${table.key})` : ""} as CSV (${describeFilters(filters)})`,
+    description: `${actor.role} exported the ${def.label} report${table.key ? ` (${table.key})` : ""} as CSV (${describeFilters(filters)})`,
     metadata: {
       report: type,
       table: table.key || "main",

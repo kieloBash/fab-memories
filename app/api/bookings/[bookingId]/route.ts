@@ -1,5 +1,6 @@
 // app/api/bookings/[bookingId]/route.ts
 
+import { auditChanges } from "@/lib/audit/redact"
 import {
   cancelBookingRecord,
   confirmBookingRecord,
@@ -90,8 +91,8 @@ export async function PATCH(req: Request, { params }: Params) {
       Number(existing.agreedPrice), tx)
       audit({
             userId: actor.id, action: "UPDATE", module: "BOOKING",
-            description: `Client "${actor.fullName}" updated their booking`,
-            metadata: { bookingId, changes: parsed.data },
+            description: `Client updated their booking`,
+            metadata: { bookingId, changes: auditChanges(parsed.data) },
           })
       return result
     }),
@@ -128,12 +129,12 @@ export async function PATCH(req: Request, { params }: Params) {
         audit(isRestore
           ? {
               userId: actor.id, action: "DECLINE", module: "BOOKING",
-              description: `${actor.role} "${actor.fullName}" declined the cancellation request — booking stays confirmed`,
+              description: `${actor.role} declined the cancellation request — booking stays confirmed`,
               metadata: { bookingId, clientId: existing.clientId },
             }
           : {
               userId: actor.id, action: "CONFIRM", module: "BOOKING",
-              description: `${actor.role} "${actor.fullName}" confirmed booking`,
+              description: `${actor.role} confirmed booking`,
               metadata: { bookingId, clientId: existing.clientId },
             })
         return result
@@ -141,8 +142,8 @@ export async function PATCH(req: Request, { params }: Params) {
       const result = await cancelBookingRecord(bookingId, parsed.data.cancellationReason!, tx)
       audit({
         userId: actor.id, action: "DELETE", module: "BOOKING",
-        description: `${actor.role} "${actor.fullName}" cancelled booking`,
-        metadata: { bookingId, reason: parsed.data.cancellationReason },
+        description: `${actor.role} cancelled booking`,
+        metadata: { bookingId, reasonProvided: true },
       })
       return result
     }),
@@ -189,7 +190,7 @@ export async function DELETE(_req: Request, { params }: Params) {
       const result = await deleteBookingRecord(bookingId, tx)
       audit({
           userId: actor.id, action: "DELETE", module: "BOOKING",
-          description: `Client "${actor.fullName}" withdrew their PENDING booking`,
+          description: `Client withdrew their PENDING booking`,
           metadata: { bookingId },
         })
       return result

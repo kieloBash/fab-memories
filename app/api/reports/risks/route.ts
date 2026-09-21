@@ -22,7 +22,7 @@ export async function GET() {
 
   await logReportView({
     userId: actor.id,
-    description: `${actor.fullName} viewed the full risk register`,
+    description: `${actor.role} viewed the full risk register`,
     metadata: { total: risks.summary.total },
   })
 

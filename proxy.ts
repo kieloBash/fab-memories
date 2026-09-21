@@ -1,8 +1,9 @@
-// middleware.ts  (project root)
+// proxy.ts  (project root — Next 16 name for middleware)
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import type { Role } from "@/app/generated/prisma/client"
+import { cspOptions } from "@/lib/security/headers"
 
 // ── Route matchers ────────────────────────────────────────────────────────────
 
@@ -17,6 +18,9 @@ const isStaffRoute = createRouteMatcher(["/staff(.*)"])
 
 /** Routes accessible only by clients */
 const isClientRoute = createRouteMatcher(["/portal(.*)"])
+
+/** Every API route. Signed-out callers are refused here, before any route code runs (deny by default). */
+const isApi = createRouteMatcher(["/api(.*)"])
 
 /** Public routes — never redirect these */
 const isPublic = createRouteMatcher([
@@ -35,6 +39,14 @@ const isPublic = createRouteMatcher([
 export default clerkMiddleware(async (auth, req) => {
     // Always allow public routes through without any checks
     if (isPublic(req)) return NextResponse.next()
+
+    // DENY BY DEFAULT for the API: a signed-out caller never reaches a route handler, so a route that forgets its own
+    // guard is still not open to the internet. (Each route still checks the ROLE itself — this is the outer wall.)
+    if (isApi(req)) {
+        const { userId } = await auth()
+        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        return NextResponse.next()
+    }
 
     // For protected routes, enforce authentication first
     if (isProtected(req)) {
@@ -60,6 +72,9 @@ export default clerkMiddleware(async (auth, req) => {
     }
 
     return NextResponse.next()
+}, {
+    // Content-Security-Policy with a per-request nonce (see lib/security/headers.ts). Report-only until CSP_ENFORCE=true.
+    contentSecurityPolicy: cspOptions,
 })
 
 export const config = {

@@ -26,7 +26,7 @@ async function recordLockout(data: any, dedupMinutes: number) {
         where: { clerkId: data.id },
         select: { id: true, fullName: true, role: true },
     });
-    const who = dbUser ? `${dbUser.fullName} (${dbUser.role})` : 'A user';
+    const who = dbUser ? `${dbUser.role}` : 'A user';
     const description = `${who} account locked after repeated failed sign-in attempts`;
 
     const recent = await prisma.auditLog.findFirst({
@@ -130,7 +130,7 @@ export async function processClerkEvent(
                 userId: dbUser?.id ?? null,
                 action: 'LOGIN',
                 module: 'AUTH',
-                description: dbUser ? `${dbUser.fullName} (${dbUser.role}) signed in` : 'A user signed in',
+                description: dbUser ? `${dbUser.role} signed in` : 'A user signed in',
                 metadata: { clerkSessionId: data.id, clerkUserId: data.user_id },
             });
             break;
@@ -147,7 +147,7 @@ export async function processClerkEvent(
                 userId: dbUser?.id ?? null,
                 action: 'LOGOUT',
                 module: 'AUTH',
-                description: dbUser ? `${dbUser.fullName} (${dbUser.role}) signed out` : 'A user session ended',
+                description: dbUser ? `${dbUser.role} signed out` : 'A user session ended',
                 metadata: { clerkSessionId: data.id, clerkUserId: data.user_id, eventType },
             });
             break;
