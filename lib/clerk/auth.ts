@@ -1,5 +1,6 @@
 import type { Role } from '@/app/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { clerkClient } from '@/lib/clerk/client';
 import { auth, currentUser } from '@clerk/nextjs/server';
 import type { AppSessionClaims } from './types';
 
@@ -72,4 +73,22 @@ export async function requireRole(allowedRoles: Role[]): Promise<Role> {
  */
 export async function requireAdmin(): Promise<void> {
     await requireRole(['ADMIN']);
+}
+
+/**
+ * Ends the CURRENT session at Clerk (server-side). Used when an account signs in on the wrong login page.
+ * Best-effort: returns false instead of throwing if Clerk cannot be reached, so the caller can still refuse the request.
+ * (Clerk's short-lived session token stays valid for up to a minute after revocation; the login page also signs the browser out.)
+ */
+export async function revokeCurrentSession(): Promise<boolean> {
+    try {
+        const { sessionId } = await auth();
+        if (!sessionId) return false;
+        const clerk = await clerkClient();
+        await clerk.sessions.revokeSession(sessionId);
+        return true;
+    } catch (err) {
+        console.error('Failed to revoke session:', err);
+        return false;
+    }
 }

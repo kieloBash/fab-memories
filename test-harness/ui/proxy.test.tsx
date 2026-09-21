@@ -61,6 +61,39 @@ describe("pages", () => {
   })
 })
 
+describe("already signed in → the login pages redirect to the user's own dashboard", () => {
+  const dest: [string, string][] = [["CLIENT", "/portal"], ["ADMIN", "/staff/admin"], ["COORDINATOR", "/staff/coordinator"], ["VENDOR", "/staff/vendor"]]
+  const pages = ["/sign-in", "/sign-up", "/staff-login", "/sign-in/sso-callback", "/staff-login/factor-two"]
+
+  for (const [role, where] of dest) {
+    it.each(pages)(`${role} on %s → ${where}`, async (path) => {
+      const r = await call(path, { userId: "u1", role })
+      expect(r.status).toBe(307)
+      expect(new URL(r.location).pathname).toBe(where)
+      expect(new URL(r.location).origin).toBe("https://app.test")       // never off-site
+    })
+  }
+
+  it.each(pages)("signed-OUT visitors still see %s", async (path) => {
+    const r = await call(path)
+    expect(r.passed).toBe(true)
+    expect(r.status).toBe(200)
+  })
+
+  it.each(pages)("signed in but role unknown → NOT redirected on %s (avoids a redirect loop)", async (path) => {
+    const r = await call(path, { userId: "u1" })
+    expect(r.passed).toBe(true)
+  })
+
+  it("/forgot-password is left alone even when signed in", async () => {
+    expect((await call("/forgot-password", { userId: "u1", role: "ADMIN" })).passed).toBe(true)
+  })
+
+  it("the public site, packages and API are unaffected by the redirect", async () => {
+    for (const path of ["/", "/packages", "/terms", "/api/public/packages"]) expect((await call(path, { userId: "u1", role: "CLIENT" })).passed).toBe(true)
+  })
+})
+
 describe("Content-Security-Policy", () => {
   beforeEach(() => { vi.resetModules(); delete process.env.CSP_ENFORCE })
 

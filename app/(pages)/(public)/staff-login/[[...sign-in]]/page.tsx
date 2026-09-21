@@ -19,7 +19,8 @@
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useSignIn } from "@clerk/nextjs"
+import { useClerk, useSignIn } from "@clerk/nextjs"
+import { checkPortal } from "@/features/auth/portal-check"
 import { AuthShell } from "@/features/auth/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +29,7 @@ import { AlertCircle, UserCog, Lock, Eye, EyeOff, ArrowRight } from "lucide-reac
 
 export default function StaffLoginPage() {
   const { signIn, errors, fetchStatus } = useSignIn()
+  const { signOut } = useClerk()
   const router = useRouter()
 
   const [username, setUsername] = useState("")
@@ -58,7 +60,14 @@ export default function StaffLoginPage() {
             console.log(session.currentTask)
             return
           }
-          const url = decorateUrl("/staff")
+          // Is this account allowed on THIS login page? (server-side check; also revokes the session if not)
+          const check = await checkPortal("staff", () => session?.getToken())
+          if (!check.ok) {
+            setFormError(check.message)
+            try { await signOut() } catch { /* the server already revoked the session */ }
+            return
+          }
+          const url = decorateUrl(check.destination)
           if (url.startsWith("http")) {
             window.location.href = url
           } else {

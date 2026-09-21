@@ -4,6 +4,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server"
 import { NextResponse } from "next/server"
 import type { Role } from "@/app/generated/prisma/client"
 import { cspOptions } from "@/lib/security/headers"
+import { dashboardFor } from "@/lib/clerk/portal"
 
 // ── Route matchers ────────────────────────────────────────────────────────────
 
@@ -18,6 +19,13 @@ const isStaffRoute = createRouteMatcher(["/staff(.*)"])
 
 /** Routes accessible only by clients */
 const isClientRoute = createRouteMatcher(["/portal(.*)"])
+
+/** The login / sign-up pages (including Clerk's sub-paths such as /sign-in/sso-callback). */
+const isAuthPage = createRouteMatcher([
+    "/sign-in(.*)",
+    "/sign-up(.*)",
+    "/staff-login(.*)",
+])
 
 /** Every API route. Signed-out callers are refused here, before any route code runs (deny by default). */
 const isApi = createRouteMatcher(["/api(.*)"])
@@ -37,6 +45,15 @@ const isPublic = createRouteMatcher([
 // ── Middleware ────────────────────────────────────────────────────────────────
 
 export default clerkMiddleware(async (auth, req) => {
+    // Already signed in? The login and sign-up pages are pointless — send them to their own dashboard.
+    // Only when the role is KNOWN: /staff and /portal already bounce users with an unknown role between them,
+    // so redirecting those users from here could create a redirect loop.
+    if (isAuthPage(req)) {
+        const { userId, sessionClaims } = await auth()
+        const role = (sessionClaims as any)?.metadata?.role as Role | undefined
+        if (userId && role) return NextResponse.redirect(new URL(dashboardFor(role), req.url))
+    }
+
     // Always allow public routes through without any checks
     if (isPublic(req)) return NextResponse.next()
 

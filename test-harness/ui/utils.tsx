@@ -5,6 +5,7 @@ import type { ReactElement } from "react"
 import { vi } from "vitest"
 
 export const mockApi = { get: vi.fn(), patch: vi.fn(), post: vi.fn(), delete: vi.fn(), put: vi.fn() }
+export const routerMock = { push: vi.fn(), replace: vi.fn(), back: vi.fn() }
 export const toastMock = { success: vi.fn(), error: vi.fn() }
 
 export function renderWithClient(ui: ReactElement) {

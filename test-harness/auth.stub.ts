@@ -23,3 +23,9 @@ export async function getCurrentDbUser() {
   const user = await prisma.user.findUnique({ where: { username: u } })
   return user && process.env.TEST_GHOST ? { ...user, id: "ghost-user" } : user
 }
+
+/** Records how many times a session revocation was requested (tests read globalThis.__revokeCalls). TEST_REVOKE_FAIL=1 simulates Clerk being unreachable. */
+export async function revokeCurrentSession(): Promise<boolean> {
+  ;(globalThis as any).__revokeCalls = ((globalThis as any).__revokeCalls ?? 0) + 1
+  return !process.env.TEST_REVOKE_FAIL
+}

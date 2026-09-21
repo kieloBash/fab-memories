@@ -13,8 +13,11 @@ vi.mock("sonner", async () => {
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: any) => <a href={href} {...rest}>{children}</a>,
 }))
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
+vi.mock("next/navigation", async () => {
+  const { routerMock } = await import("./utils")
+  return {
+  useRouter: () => routerMock,
   notFound: () => { throw new Error("NEXT_NOT_FOUND") },
   usePathname: () => "/",
-}))
+  }
+})

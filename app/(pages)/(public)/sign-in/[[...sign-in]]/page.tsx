@@ -18,7 +18,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { AuthShell } from "@/features/auth/components/auth-shell"
-import { useSignIn } from "@clerk/nextjs"
+import { useClerk, useSignIn } from "@clerk/nextjs"
+import { checkPortal } from "@/features/auth/portal-check"
 import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -26,6 +27,7 @@ import { useState } from "react"
 
 export default function SignInPage() {
   const { signIn, errors, fetchStatus } = useSignIn()
+  const { signOut } = useClerk()
   const router = useRouter()
 
   // const [email, setEmail] = useState("")
@@ -60,7 +62,14 @@ export default function SignInPage() {
             console.log(session.currentTask)
             return
           }
-          const url = decorateUrl("/portal")
+          // Is this account allowed on THIS login page? (server-side check; also revokes the session if not)
+          const check = await checkPortal("client", () => session?.getToken())
+          if (!check.ok) {
+            setFormError(check.message)
+            try { await signOut() } catch { /* the server already revoked the session */ }
+            return
+          }
+          const url = decorateUrl(check.destination)
           if (url.startsWith("http")) {
             window.location.href = url
           } else {
