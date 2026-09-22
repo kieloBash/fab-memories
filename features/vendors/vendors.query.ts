@@ -2,13 +2,13 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import type { VendorCategory } from "@/app/generated/prisma/client"
+import type { Prisma, VendorCategory } from "@/app/generated/prisma/client"
 import type {
   AssignVendorInput,
   CreateVendorInput,
   UpdateBookingVendorInput,
   UpdateVendorInput,
-} from "./vendors.schema"
+} from "@/features/vendors/vendors.schema"
 
 // ── Vendor CRUD ───────────────────────────────────────────────
 
@@ -63,20 +63,25 @@ export async function createVendorRecord(input: CreateVendorInput) {
   })
 }
 
+/**
+ * PARTIAL update — a field the caller did not send is left unchanged (see updateVendorSchema).
+ * A previous version unconditionally wrote every field, so a PATCH with only `{ name }` silently
+ * erased the vendor's phone, email, contact channel, coverage areas and notes.
+ */
 export async function updateVendorRecord(id: string, input: UpdateVendorInput) {
+  const data: Prisma.VendorUpdateInput = {}
+  if (input.name !== undefined) data.name = input.name
+  if (input.category !== undefined) data.category = input.category
+  if (input.contactName !== undefined) data.contactName = input.contactName || null
+  if (input.contactPhone !== undefined) data.contactPhone = input.contactPhone || null
+  if (input.contactEmail !== undefined) data.contactEmail = input.contactEmail || null
+  if (input.contactChannel !== undefined) data.contactChannel = input.contactChannel || null
+  if (input.coverageAreas !== undefined) data.coverageAreas = input.coverageAreas
+  if (input.notes !== undefined) data.notes = input.notes || null
+
   return prisma.vendor.update({
     where: { id },
-    data: {
-      name: input.name,
-      category: input.category,
-      contactName: input.contactName ?? null,
-      contactPhone: input.contactPhone ?? null,
-      contactEmail: input.contactEmail || null,
-      contactChannel: input.contactChannel ?? null,
-      coverageAreas: input.coverageAreas ?? [],
-      notes: input.notes ?? null,
-      // isActive:       input.isActive,
-    },
+    data,
     include: { _count: { select: { assignments: true } } },
   })
 }
@@ -134,22 +139,28 @@ export async function assignVendorToBooking(
   })
 }
 
+/**
+ * PARTIAL update — a field the caller did not send is left unchanged (see updateBookingVendorSchema).
+ * A previous version unconditionally wrote every field, so recording a quotation alone (Module 8's
+ * "Record quotation" dialog) silently un-marked the vendor as contacted/confirmed and erased its notes.
+ * The dialog worked around that by resending the whole record; that workaround is no longer needed,
+ * though it remains harmless.
+ */
 export async function updateBookingVendorRecord(
   bookingId: string,
   vendorId: string,
   input: UpdateBookingVendorInput,
 ) {
+  const data: Prisma.BookingVendorUpdateInput = {}
+  if (input.notes !== undefined) data.notes = input.notes || null
+  if (input.contactedAt !== undefined) data.contactedAt = input.contactedAt ? new Date(input.contactedAt) : null
+  if (input.confirmedAt !== undefined) data.confirmedAt = input.confirmedAt ? new Date(input.confirmedAt) : null
+  if (input.quotationAmount !== undefined) data.quotationAmount = input.quotationAmount
+  if (input.quotationNote !== undefined) data.quotationNote = input.quotationNote
+
   return prisma.bookingVendor.update({
     where: { bookingId_vendorId: { bookingId, vendorId } },
-    data: {
-      notes: input.notes ?? null,
-      contactedAt: input.contactedAt ? new Date(input.contactedAt) : null,
-      confirmedAt: input.confirmedAt ? new Date(input.confirmedAt) : null,
-      // MODULE 8 — quotation fields are only touched when explicitly sent
-      // (undefined = leave as is, null = clear).
-      ...(input.quotationAmount !== undefined && { quotationAmount: input.quotationAmount }),
-      ...(input.quotationNote   !== undefined && { quotationNote:   input.quotationNote }),
-    },
+    data,
     include: { vendor: true },
   })
 }

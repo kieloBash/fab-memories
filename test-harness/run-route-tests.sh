@@ -27,3 +27,4 @@ cp test-harness/auth.stub.ts "$AUTH"
 npx tsx test-harness/verify-report-routes.ts
 npx tsx test-harness/verify-integrity-routes.ts
 npx tsx test-harness/verify-portal-routes.ts
+npx tsx test-harness/verify-vendor-routes.ts
