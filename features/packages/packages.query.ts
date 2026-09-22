@@ -2,8 +2,8 @@
 "use server"
 
 import { prisma } from "@/lib/prisma"
-import type { EventType } from "@/app/generated/prisma/client"
-import type { CreatePackageInput, UpdatePackageInput } from "./packages.schema"
+import type { EventType, Prisma } from "@/app/generated/prisma/client"
+import type { CreatePackageInput, UpdatePackageInput } from "@/features/packages/packages.schema"
 
 export async function getAllPackages(activeOnly = false) {
   return prisma.package.findMany({
@@ -40,16 +40,18 @@ export async function createPackageRecord(input: CreatePackageInput) {
   })
 }
 
+/**
+ * PARTIAL update — a field the caller did not send is left unchanged (see updatePackageSchema; NOT derived
+ * with .partial(), which would silently reactivate a deactivated package on the next unrelated edit).
+ */
 export async function updatePackageRecord(id: string, input: UpdatePackageInput) {
-  return prisma.package.update({
-    where: { id },
-    data: {
-      name: input.name,
-      description: input.description,
-      eventType: input.eventType,
-      price: input.price,
-      inclusions: input.inclusions,
-      isActive: input.isActive,
-    },
-  })
+  const data: Prisma.PackageUpdateInput = {}
+  if (input.name !== undefined) data.name = input.name
+  if (input.description !== undefined) data.description = input.description || null
+  if (input.eventType !== undefined) data.eventType = input.eventType
+  if (input.price !== undefined) data.price = input.price
+  if (input.inclusions !== undefined) data.inclusions = input.inclusions
+  if (input.isActive !== undefined) data.isActive = input.isActive
+
+  return prisma.package.update({ where: { id }, data })
 }

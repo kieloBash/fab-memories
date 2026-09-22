@@ -9,6 +9,7 @@ import { useBookingPayments } from "@/features/payments"
 import { useInstallments } from "@/features/installments/installments.hooks"
 import { BookingStatusBadge } from "@/features/bookings/components/booking-status-badge"
 import { PaymentSummary } from "@/features/bookings/components/payment-summary"
+import { BookingHistoryTimeline } from "@/features/bookings/components/booking-history-timeline"
 import { WithdrawBookingDialog } from "@/features/bookings/components/withdraw-booking-dialog"
 import { CancelRequestDialog } from "@/features/bookings/components/cancel-request-dialog"
 import { PageHeader } from "@/components/ui/page-header"
@@ -219,6 +220,9 @@ export default function ClientBookingDetailPage({ params }: Props) {
           variant="client"
         />
       )}
+
+      {/* ── Status history (FR-13) ── */}
+      <BookingHistoryTimeline bookingId={booking.id} />
 
       {/* ── Booking details ── */}
       <div className="rounded-xl border border-border bg-white p-5 space-y-4">

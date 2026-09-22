@@ -5,7 +5,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { useStaffingCalendar } from "@/features/staff-assignments"
 import { Button } from "@/components/ui/button"
-import { ChevronLeft, ChevronRight, Users, AlertTriangle, HelpCircle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Users, AlertTriangle, HelpCircle, Eye, EyeOff } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 const MONTH_NAMES = [
@@ -47,8 +47,11 @@ export function StaffingCalendar({ bookingHref }: StaffingCalendarProps) {
   const today = new Date()
   const [year, setYear]   = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth())
+  const [showCancelled, setShowCancelled] = useState(true)
 
-  const { data: entries, isLoading } = useStaffingCalendar(year, month)
+  const { data: allEntries, isLoading } = useStaffingCalendar(year, month)
+  const entries = showCancelled ? allEntries : allEntries?.filter((e) => e.status !== "CANCELLED")
+  const cancelledCount = allEntries?.filter((e) => e.status === "CANCELLED").length ?? 0
 
   const prevMonth = () => {
     if (month === 0) { setYear((y) => y - 1); setMonth(11) }
@@ -75,7 +78,8 @@ export function StaffingCalendar({ bookingHref }: StaffingCalendarProps) {
     i < firstDay ? null : i - firstDay + 1,
   )
 
-  const statusColor = (isCompliant: boolean, assignedCount: number) => {
+  const statusColor = (status: string, isCompliant: boolean | null, assignedCount: number) => {
+    if (status === "CANCELLED") return "bg-transparent border border-text-muted"
     if (assignedCount === 0) return "bg-border"
     return isCompliant ? "bg-emerald-400" : "bg-amber-400"
   }
@@ -118,6 +122,18 @@ export function StaffingCalendar({ bookingHref }: StaffingCalendarProps) {
           <div className="h-2 w-2 rounded-full bg-border" />
           <span className="text-[11px] text-text-muted">No staff assigned</span>
         </div>
+        <div className="flex items-center gap-1.5">
+          <div className="h-2 w-2 rounded-full border border-text-muted bg-transparent" />
+          <span className="text-[11px] text-text-muted">Cancelled</span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCancelled((v) => !v)}
+          className="ml-auto flex items-center gap-1 text-[11px] font-medium text-text-muted hover:text-primary"
+        >
+          {showCancelled ? <EyeOff size={12} aria-hidden="true" /> : <Eye size={12} aria-hidden="true" />}
+          {showCancelled ? "Hide" : "Show"} cancelled{cancelledCount > 0 ? ` (${cancelledCount})` : ""}
+        </button>
       </div>
 
       {/* Day-of-week headers */}
@@ -160,22 +176,26 @@ export function StaffingCalendar({ bookingHref }: StaffingCalendarProps) {
                       {day}
                     </span>
                     <div className="mt-1 space-y-0.5">
-                      {dayEntries?.slice(0, 3).map((e) => (
-                        <button
-                          key={e.bookingId}
-                          onClick={() => router.push(bookingHref(e.bookingId))}
-                          title={`${e.coordinatorNames.length > 0 ? e.coordinatorNames.join(", ") : "No coordinators assigned"} · ${e.assignedCount}/${e.recommendation.min}–${e.recommendation.max} recommended`}
-                          className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-primary-soft/40 transition-colors"
-                        >
-                          <div className={cn(
-                            "h-1.5 w-1.5 shrink-0 rounded-full",
-                            statusColor(e.isCompliant, e.assignedCount),
-                          )} />
-                          <span className="text-[10px] text-text-sub truncate">
-                            {EVENT_TYPE_LABELS[e.eventType] ?? e.eventType}
-                          </span>
-                        </button>
-                      ))}
+                      {dayEntries?.slice(0, 3).map((e) => {
+                        const isCancelled = e.status === "CANCELLED"
+                        return (
+                          <button
+                            key={e.bookingId}
+                            onClick={() => router.push(bookingHref(e.bookingId))}
+                            title={
+                              isCancelled
+                                ? "Cancelled"
+                                : `${e.coordinatorNames.length > 0 ? e.coordinatorNames.join(", ") : "No coordinators assigned"} · ${e.assignedCount}/${e.recommendation!.min}–${e.recommendation!.max} recommended`
+                            }
+                            className="w-full flex items-center gap-1 rounded px-1 py-0.5 text-left hover:bg-primary-soft/40 transition-colors"
+                          >
+                            <div className={cn("h-1.5 w-1.5 shrink-0 rounded-full", statusColor(e.status, e.isCompliant, e.assignedCount))} />
+                            <span className={cn("text-[10px] truncate", isCancelled ? "text-text-muted line-through" : "text-text-sub")}>
+                              {EVENT_TYPE_LABELS[e.eventType] ?? e.eventType}
+                            </span>
+                          </button>
+                        )
+                      })}
                       {dayEntries && dayEntries.length > 3 && (
                         <p className="text-[10px] text-text-muted pl-1">
                           +{dayEntries.length - 3} more

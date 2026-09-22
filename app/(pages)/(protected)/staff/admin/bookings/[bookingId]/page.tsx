@@ -12,6 +12,7 @@ import { ConfirmBookingDialog } from "@/features/bookings/components/confirm-boo
 import { CancelBookingDialog } from "@/features/bookings/components/cancel-booking-dialog"
 import { ContractTermsForm } from "@/features/bookings/components/contract-terms-form"
 import { PaymentSummary } from "@/features/bookings/components/payment-summary"
+import { BookingHistoryTimeline } from "@/features/bookings/components/booking-history-timeline"
 import { BookingVendorPanel } from "@/features/vendors/components/booking-vendor-panel"
 import { BookingStaffPanel } from "@/features/staff-assignments/components/booking-staff-panel"
 import { PageHeader } from "@/components/ui/page-header"
@@ -305,6 +306,9 @@ export default function AdminBookingDetailPage({ params }: Props) {
             variant="staff"
             onViewPayment={(id) => router.push(`/staff/admin/payments/${id}`)}
           />
+
+          {/* ── Status history (FR-13) ── */}
+          <BookingHistoryTimeline bookingId={booking.id} />
         </div>
 
         {/* ── Right column: actions ── */}

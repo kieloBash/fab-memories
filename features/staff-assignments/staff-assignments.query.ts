@@ -203,7 +203,11 @@ export async function getStaffingCalendarMonth(year: number, month: number /* 0-
   const bookings = await prisma.booking.findMany({
     where: {
       eventDate: { gte: start, lte: end },
-      status: { in: ["CONFIRMED", "PENDING"] },
+      // MODULE: cancelled events are shown too (FR-16), visibly distinct — but see the return below,
+      // they carry NO staffing figures and never affect compliance: staffing is meaningless for an
+      // event that isn't happening, and counting it would understate real coverage on days that also
+      // hold an active booking.
+      status: { in: ["CONFIRMED", "PENDING", "CANCELLED"] },
     },
     select: {
       id: true, eventType: true, eventDate: true, venue: true,
@@ -219,6 +223,13 @@ export async function getStaffingCalendarMonth(year: number, month: number /* 0-
   })
 
   return bookings.map((b) => {
+    if (b.status === "CANCELLED") {
+      return {
+        bookingId: b.id, eventType: b.eventType, eventDate: b.eventDate.toISOString(),
+        venue: b.venue, status: b.status, guestCount: b.guestCount,
+        assignedCount: 0, recommendation: null, isCompliant: null, coordinatorNames: [],
+      }
+    }
     const primary = b.staffAssignments.filter((a) => !a.isBackup)
     const recommendation = getStaffingRecommendation(b.guestCount)
     const assignedCount = primary.length

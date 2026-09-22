@@ -1,0 +1,23 @@
+[
+ {
+  "id": "cmubwgqh400018y7dtthyytek",
+  "at": "2026-09-21T23:52:16.645Z",
+  "actorRole": "CLIENT",
+  "kind": "requested",
+  "label": "Booking requested"
+ },
+ {
+  "id": "cmubwgqi000038y7dygce3pvq",
+  "at": "2026-09-21T23:52:16.679Z",
+  "actorRole": "CLIENT",
+  "kind": "deposit_submitted",
+  "label": "Deposit payment recorded"
+ },
+ {
+  "id": "cmubwgqk200048y7d6rpqp3d5",
+  "at": "2026-09-21T23:52:16.753Z",
+  "actorRole": "ADMIN",
+  "kind": "deposit_verified",
+  "label": "Deposit verified — booking confirmed"
+ }
+]

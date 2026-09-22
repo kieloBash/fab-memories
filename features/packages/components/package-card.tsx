@@ -1,7 +1,8 @@
 // features/packages/components/package-card.tsx
 
 import { Badge } from "@/components/ui/badge"
-import { CheckCircle2, MapPin, Circle } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { CheckCircle2, MapPin, Circle, Pencil, Power } from "lucide-react"
 import type { Package } from "../packages.types"
 import { cn } from "@/lib/utils"
 
@@ -21,9 +22,13 @@ interface PackageCardProps {
   selected?: boolean
   onSelect?: (pkg: Package) => void
   isProvincial?: boolean   // when true, shows priceProvincial if available
+  /** Admin-only actions (Edit / Activate-Deactivate). Omit these props anywhere the card is used for selection. */
+  onEdit?: (pkg: Package) => void
+  onToggleActive?: (pkg: Package) => void
+  isTogglingActive?: boolean
 }
 
-export function PackageCard({ pkg, selected, onSelect, isProvincial }: PackageCardProps) {
+export function PackageCard({ pkg, selected, onSelect, isProvincial, onEdit, onToggleActive, isTogglingActive }: PackageCardProps) {
   const hasProvincePrice = !!pkg.priceProvincial
   const displayPrice = isProvincial && hasProvincePrice
     ? Number(pkg.priceProvincial)
@@ -48,7 +53,8 @@ export function PackageCard({ pkg, selected, onSelect, isProvincial }: PackageCa
         selected
           ? "border-primary shadow-primary-sm ring-2 ring-primary/20"
           : "border-border hover:border-border-strong",
-        !pkg.isActive && "opacity-60 pointer-events-none",
+        !pkg.isActive && clickable && "opacity-60 pointer-events-none",  // inactive = unselectable for clients; admin actions stay usable
+        !pkg.isActive && !clickable && "opacity-70",
       )}
     >
       {/*
@@ -120,6 +126,26 @@ export function PackageCard({ pkg, selected, onSelect, isProvincial }: PackageCa
           </li>
         ))}
       </ul>
+
+      {/* Admin actions — stopPropagation so these never trigger the card's own onSelect */}
+      {(onEdit || onToggleActive) && (
+        <div className="mt-1 flex items-center gap-2 border-t border-border pt-3 pointer-events-auto">
+          {onEdit && (
+            <Button variant="outline" size="sm" data-testid="package-edit-button" onClick={(e) => { e.stopPropagation(); onEdit(pkg) }}>
+              <Pencil size={13} aria-hidden="true" /> Edit
+            </Button>
+          )}
+          {onToggleActive && (
+            <Button
+              variant="outline" size="sm" disabled={isTogglingActive}
+              data-testid="package-toggle-active-button"
+              onClick={(e) => { e.stopPropagation(); onToggleActive(pkg) }}
+            >
+              <Power size={13} aria-hidden="true" /> {pkg.isActive ? "Deactivate" : "Activate"}
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   )
 }

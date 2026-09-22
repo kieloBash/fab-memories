@@ -101,7 +101,8 @@ export interface StaffingCalendarEntry {
   status:         string   // BookingStatus
   guestCount:     number
   assignedCount:  number
-  recommendation: StaffingRecommendation
-  isCompliant:    boolean
+  /** null for a CANCELLED event — staffing recommendations are meaningless once it isn't happening. */
+  recommendation: StaffingRecommendation | null
+  isCompliant:    boolean | null
   coordinatorNames: string[] // primary (non-backup) coordinators, for a quick hover/tooltip
 }
