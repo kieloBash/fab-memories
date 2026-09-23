@@ -1,6 +1,7 @@
 // app/api/bookings/[bookingId]/route.ts
 
 import { auditChanges } from "@/lib/audit/redact"
+import { notify } from "@/lib/notifications/notify"
 import {
   cancelBookingRecord,
   confirmBookingRecord,
@@ -157,6 +158,17 @@ export async function PATCH(req: Request, { params }: Params) {
   )
   if (!r_status.ok) return r_status.response
   const updated = r_status.value
+
+  // Client notified when STAFF cancels their booking (FR-15) — best-effort, never blocks the response.
+  if (parsed.data.status === "CANCELLED") {
+    await notify({
+      userId: existing.clientId,
+      type: "BOOKING_CANCELLED",
+      title: "Your booking was cancelled",
+      body: `Your ${existing.eventType.toLowerCase()} booking on ${new Date(existing.eventDate).toLocaleDateString("en-PH")} has been cancelled.`,
+      link: `/portal/bookings/${bookingId}`,
+    })
+  }
 
   return NextResponse.json(updated)
 }

@@ -13,6 +13,8 @@ import {
   getAllPayments,
   getPaymentsByBookingId,
 } from "@/features/payments/payments.query"
+import { notifyMany } from "@/lib/notifications/notify"
+import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
 /**
@@ -121,6 +123,16 @@ export async function POST(req: Request) {
     return r_payment.response
   }
   const payment = r_payment.value
+
+  // Staff notified within a minute of a client submitting payment proof (FR-12 / NFR-03) — best-effort,
+  // never blocks the response: the payment itself is already committed.
+  const staff = await prisma.user.findMany({ where: { role: { in: ["ADMIN", "COORDINATOR"] }, isActive: true }, select: { id: true } })
+  await notifyMany(staff.map((u) => u.id), {
+    type: "PAYMENT_SUBMITTED",
+    title: "New payment submitted",
+    body: `A client submitted ${parsed.data.paymentType.toLowerCase()} proof of ₱${parsed.data.amount.toLocaleString()}.`,
+    link: `/staff/admin/payments/${payment.id}`,
+  })
 
   return NextResponse.json(payment, { status: 201 })
 }

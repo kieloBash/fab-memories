@@ -11,6 +11,7 @@ import {
   verifyFullBalancePaymentRecord,
   verifyInstallmentPaymentRecord,
 } from "@/features/payments/payments.query"
+import { notify } from "@/lib/notifications/notify"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
@@ -62,6 +63,16 @@ export async function PATCH(req: Request, { params }: Params) {
   )
   if (!r_payment_flag.ok) return r_payment_flag.response
   const payment = r_payment_flag.value
+
+  // Client notified when their payment is flagged (FR-27) — best-effort, never blocks the response.
+  await notify({
+    userId: existing.booking.client.id,
+    type: "PAYMENT_FLAGGED",
+    title: "A payment needs your attention",
+    body: `Your ${existing.paymentType.toLowerCase()} payment for ${existing.booking.eventType.toLowerCase()} on ${new Date(existing.booking.eventDate).toLocaleDateString("en-PH")} was flagged${verificationNote ? `: ${verificationNote}` : "."}`,
+    link: `/portal/bookings/${existing.booking.id}`,
+  })
+
     return NextResponse.json(payment)
   }
 

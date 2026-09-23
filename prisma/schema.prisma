@@ -149,6 +149,7 @@ model User {
   verifiedPayments Payment[]                   @relation("PaymentVerifiedBy")
   staffAssignments StaffAssignment[]           @relation("CoordinatorAssignments")
   unavailability   CoordinatorUnavailability[]
+  notifications    Notification[]
 
   @@index([role])
 }
@@ -400,4 +401,26 @@ model CoordinatorUnavailability {
 
   @@unique([coordinatorId, date])
   @@index([date])
+}
+
+enum NotificationType {
+  PAYMENT_SUBMITTED
+  PAYMENT_FLAGGED
+  BOOKING_CANCELLED
+  PAYMENT_DUE_SOON
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  title     String
+  body      String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([createdAt])
 }

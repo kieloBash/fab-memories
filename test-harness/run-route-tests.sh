@@ -37,3 +37,4 @@ npx tsx test-harness/verify-package-routes.ts
 npx tsx test-harness/verify-staff-account-routes.ts
 npx tsx test-harness/verify-booking-search-routes.ts
 npx tsx test-harness/verify-availability-routes.ts
+npx tsx test-harness/verify-notification-routes.ts
