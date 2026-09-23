@@ -1,5 +1,4 @@
 // features/bookings/booking-history.query.ts
-"use server"
 
 // Builds a booking's status timeline FROM THE AUDIT TRAIL, so there is one source of truth for "what happened
 // and when" rather than a second copy of the same facts. Only SUCCESS entries are shown — a timeline is what

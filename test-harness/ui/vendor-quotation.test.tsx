@@ -17,8 +17,10 @@ const booking = { id: "b1", vendorCategories: ["CATERING"], isProvincial: false,
 
 function setup(a = assignment()) {
   routeGet({
-    "/bookings/b1/vendors/coverage": { requested: ["CATERING"], covered: [], missing: ["CATERING"], isFullyCovered: false },
-    "/bookings/b1/vendors": [a],
+    // coverage and the assignment list share one URL; ?coverage=true selects the coverage check
+    "/bookings/b1/vendors": (cfg: any) => cfg?.params?.coverage === "true"
+      ? { requested: ["CATERING"], covered: [], missing: ["CATERING"], isFullyCovered: false }
+      : [a],
     "/vendors": [vendor],
   })
   mockApi.patch.mockResolvedValue({ data: a })

@@ -1,5 +1,4 @@
 // features/vendors/vendors.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import type { Prisma, VendorCategory } from "@/app/generated/prisma/client"

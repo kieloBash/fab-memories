@@ -11,7 +11,16 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "create-feature": "node scripts/create-feature.mjs"
+    "create-feature": "node scripts/create-feature.mjs",
+    "test": "vitest run --project ui --project unit",
+    "test:ui": "vitest run --project ui",
+    "test:unit": "vitest run --project unit",
+    "test:int": "vitest run --project integration",
+    "test:all": "vitest run",
+    "test:watch": "vitest --project ui --project unit",
+    "test:routes": "bash test-harness/run-route-tests.sh",
+    "seed:testing": "tsx prisma/seed.ts --with=testing",
+    "seed:testing:reset": "tsx prisma/seed.ts --reset=testing"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

@@ -1,5 +1,4 @@
 // features/packages/packages.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import type { EventType, Prisma } from "@/app/generated/prisma/client"

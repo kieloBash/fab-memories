@@ -1,5 +1,4 @@
 // features/installments/installments.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import { type DbClient, withTx } from "@/lib/db"

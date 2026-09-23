@@ -105,7 +105,7 @@ export async function POST(req: Request) {
     module:      "BOOKING",
     description: `Client submitted a booking request for ${parsed.data.eventDate}`,
     metadata:    {
-      bookingId:    booking.id,
+      bookingId:    result.id,
       packageId:    parsed.data.packageId,
       agreedPrice,
       isProvincial: parsed.data.isProvincial ?? false,

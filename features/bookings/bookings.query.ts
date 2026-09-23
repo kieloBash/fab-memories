@@ -1,5 +1,4 @@
 // features/bookings/bookings.query.ts
-"use server"
 
 import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"

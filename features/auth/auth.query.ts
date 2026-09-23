@@ -1,5 +1,4 @@
 // features/auth/auth.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import type { CreateStaffAccountInput, UpdateStaffAccountInput } from "./auth.schema"

@@ -43,6 +43,11 @@ export async function GET(req: Request) {
         { status: 400 },
       )
     }
+    // A client may only list payments for THEIR OWN booking (FINDINGS.md #3).
+    const owned = await prisma.booking.findUnique({ where: { id: bookingId }, select: { clientId: true } })
+    if (!owned || owned.clientId !== actor.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+    }
     const payments = await getPaymentsByBookingId(bookingId)
     return NextResponse.json(payments)
   }
@@ -85,6 +90,13 @@ export async function POST(req: Request) {
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
       { status: 422 },
     )
+  }
+
+  // A client may only pay for THEIR OWN booking (FINDINGS.md #4).
+  const target = await prisma.booking.findUnique({ where: { id: parsed.data.bookingId }, select: { clientId: true } })
+  if (!target || target.clientId !== actor.id) {
+    if (parsed.data.proofStoragePath) await deletePaymentProof(parsed.data.proofStoragePath)
+    return NextResponse.json({ error: target ? "Forbidden" : "Booking not found" }, { status: target ? 403 : 404 })
   }
 
   const cleanupUpload = async () => {

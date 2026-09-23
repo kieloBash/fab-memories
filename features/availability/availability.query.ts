@@ -1,5 +1,4 @@
 // features/availability/availability.query.ts
-"use server"
 
 // A coordinator's self-marked unavailable days (B-04). Deliberately simple: one row per day, no ranges,
 // no recurring rules — matching what the assignment screen actually needs to check.

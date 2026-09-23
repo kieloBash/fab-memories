@@ -1,5 +1,4 @@
 // features/payments/payments.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import { getSignedUrl } from "@/lib/storage"

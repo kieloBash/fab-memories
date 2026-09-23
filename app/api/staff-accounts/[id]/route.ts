@@ -1,3 +1,4 @@
+// app/api/staff-accounts/[id]/route.ts
 import { auditChanges } from "@/lib/audit/redact"
 import { updateStaffAccountSchema } from '@/features/staff-accounts/staff-accounts.schema';
 import { logAction } from '@/lib/audit/log';
@@ -15,6 +16,22 @@ async function wouldRemoveLastAdmin(existing: { id: string; role: string; isActi
     if (!losingAdminStatus) return false;
     const otherActiveAdmins = await prisma.user.count({ where: { role: 'ADMIN', isActive: true, id: { not: existing.id } } });
     return otherActiveAdmins === 0;
+}
+
+/**
+ * GET /api/staff-accounts/:id — one staff account (ADMIN only).
+ * features/auth/auth.api.ts → fetchStaffAccount() calls this; it had no handler (HTTP 405, FINDINGS.md #7).
+ */
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+    try {
+        await requireAdmin();
+    } catch {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const { id } = await params;
+    const user = await prisma.user.findFirst({ where: { id, role: { not: 'CLIENT' } } });
+    if (!user) return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+    return NextResponse.json(user);
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {

@@ -1,3 +1,4 @@
+<!-- test-harness/ui/README.md -->
 # UI tests (Module 8)
 
 38 component tests (vitest + jsdom + Testing Library). They render the **real** components against **real report
@@ -7,8 +8,10 @@ Next's `Link`/router mocked.
 ```bash
 npm i -D vitest@^3 jsdom @testing-library/react @testing-library/dom @testing-library/user-event \
          @testing-library/jest-dom vite-tsconfig-paths        # add --legacy-peer-deps if npm complains
-npx vitest run
+npm run test:ui          # this project only  (npm test = UI + unit)
 ```
+
+The repo now has three Vitest projects (ui, unit, integration); see `test-harness/README.md`.
 
 | File | Covers |
 |---|---|

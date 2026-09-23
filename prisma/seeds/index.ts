@@ -5,11 +5,13 @@
 import { seed as base } from "./01-base"
 import { seed as reports } from "./02-reports"
 import { seed as integrity } from "./03-integrity"
+import { seed as testing } from "./04-testing"
 import type { SeedModule } from "./_shared"
 
 export const SEEDS: SeedModule[] = [
   base,
   reports,
   integrity,
+  testing,
   // ← add new seeds here
 ]

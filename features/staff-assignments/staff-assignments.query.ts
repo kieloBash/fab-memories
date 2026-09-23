@@ -1,5 +1,4 @@
 // features/staff-assignments/staff-assignments.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import { getStaffingRecommendation } from "./staff-assignments.constants"

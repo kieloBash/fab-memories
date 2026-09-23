@@ -1,5 +1,4 @@
 // features/audit/audit.query.ts
-"use server"
 
 import { prisma } from "@/lib/prisma"
 import { computeEntryHash } from "@/lib/audit/chain"

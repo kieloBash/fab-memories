@@ -50,9 +50,11 @@ export async function fetchBookingVendors(bookingId: string): Promise<BookingVen
 }
 
 export async function fetchVendorCoverage(bookingId: string): Promise<VendorCoverageCheck> {
-  const { data } = await api.get<VendorCoverageCheck>(
-    `${vendorRoutes.bookingVendors(bookingId)}/coverage`,
-  )
+  // The route serves coverage as GET /bookings/:id/vendors?coverage=true (FINDINGS.md #5 — the old
+  // ".../vendors/coverage" path matched vendors/[vendorId], which has no GET → HTTP 405).
+  const { data } = await api.get<VendorCoverageCheck>(vendorRoutes.bookingVendors(bookingId), {
+    params: { coverage: "true" },
+  })
   return data
 }
 
