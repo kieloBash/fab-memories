@@ -1,18 +1,9 @@
-import type { Role } from '@/app/generated/prisma/client';
+import { createStaffAccountSchema } from '@/features/staff-accounts/staff-accounts.schema';
 import { logAction } from '@/lib/audit/log';
 import { getCurrentDbUser, requireAdmin } from '@/lib/clerk/auth';
 import { clerkClient } from '@/lib/clerk/client';
 import { prisma } from '@/lib/prisma';
 import { NextResponse } from 'next/server';
-
-const ALLOWED_STAFF_ROLES: Role[] = ['ADMIN', 'COORDINATOR', 'VENDOR'];
-
-interface CreateStaffBody {
-    username: string;
-    password: string;
-    fullName: string;
-    role: Role;
-}
 
 export async function GET() {
     try {
@@ -36,28 +27,12 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    let body: CreateStaffBody;
-    try {
-        body = await req.json();
-    } catch {
-        return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const parsed = createStaffAccountSchema.safeParse(body);
+    if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Invalid input' }, { status: 422 });
     }
-
-    const { username, password, fullName, role } = body;
-
-    if (!username || !password || !fullName || !role) {
-        return NextResponse.json(
-            { error: 'username, password, fullName, and role are all required' },
-            { status: 400 },
-        );
-    }
-
-    if (!ALLOWED_STAFF_ROLES.includes(role)) {
-        return NextResponse.json(
-            { error: `role must be one of: ${ALLOWED_STAFF_ROLES.join(', ')}` },
-            { status: 400 },
-        );
-    }
+    const { username, password, fullName, role } = parsed.data;
 
     const existing = await prisma.user.findUnique({ where: { username } });
     if (existing) {

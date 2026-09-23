@@ -17,6 +17,10 @@ export async function requireRole(roles: string[]) {
   return role
 }
 
+export async function requireAdmin() {
+  await requireRole(["ADMIN"])
+}
+
 export async function getCurrentDbUser() {
   const u = process.env.TEST_USER
   if (!u) return null

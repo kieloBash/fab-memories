@@ -36,10 +36,11 @@ export async function GET(req: Request) {
 
   const { searchParams } = new URL(req.url)
   const filters = bookingFilterSchema.safeParse({
-    status: searchParams.get("status") ?? undefined,
+    status:    searchParams.get("status")    ?? undefined,
     eventType: searchParams.get("eventType") ?? undefined,
-    from: searchParams.get("from") ?? undefined,
-    to: searchParams.get("to") ?? undefined,
+    from:      searchParams.get("from")      ?? undefined,
+    to:        searchParams.get("to")        ?? undefined,
+    search:    searchParams.get("search")    ?? undefined,
   })
 
   const bookings = await getAllBookings(filters.success ? filters.data : undefined)
@@ -99,17 +100,17 @@ export async function POST(req: Request) {
     auditedTransaction(async (tx, audit) => {
       const result = await createBookingRecord(actor.id, parsed.data, agreedPrice, tx)
       audit({
-        userId: actor.id,
-        action: "CREATE",
-        module: "BOOKING",
-        description: `Client submitted a booking request for ${parsed.data.eventDate}`,
-        metadata: {
-          bookingId: result.id,
-          packageId: parsed.data.packageId,
-          agreedPrice,
-          isProvincial: parsed.data.isProvincial ?? false,
-        },
-      })
+    userId:      actor.id,
+    action:      "CREATE",
+    module:      "BOOKING",
+    description: `Client submitted a booking request for ${parsed.data.eventDate}`,
+    metadata:    {
+      bookingId:    booking.id,
+      packageId:    parsed.data.packageId,
+      agreedPrice,
+      isProvincial: parsed.data.isProvincial ?? false,
+    },
+  })
       return result
     }),
     { userId: actor.id, module: "BOOKING", action: "CREATE", what: "submit the booking request" },

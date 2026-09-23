@@ -1,21 +1,26 @@
 // app/(pages)/(protected)/staff/admin/users/page.tsx
+"use client"
 
-import { ComingSoonPlaceholder } from "@/components/ui/coming-soon-placeholder"
+import { useUser } from "@clerk/nextjs"
+import { motion } from "framer-motion"
 import { UserCog } from "lucide-react"
+import { PageHeader } from "@/components/ui/page-header"
+import { CreateStaffDialog } from "@/features/staff-accounts/components/create-staff-dialog"
+import { StaffAccountsTable } from "@/features/staff-accounts/components/staff-accounts-table"
+import { SPRING } from "@/lib/framer/framer-utils"
 
 export default function AdminUsersPage() {
+  const { user } = useUser()
+
   return (
-    <ComingSoonPlaceholder
-      title="User accounts"
-      subtitle="Manage coordinator, vendor, and admin logins"
-      icon={UserCog}
-      description="Create and manage staff accounts (Admin, Coordinator, Vendor) directly from the dashboard instead of through the Clerk console."
-      plannedFeatures={[
-        "Create coordinator and vendor staff accounts",
-        "Deactivate or reactivate a staff account",
-        "View last login and account status",
-        "Role reassignment",
-      ]}
-    />
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING} className="flex flex-col gap-6">
+      <PageHeader
+        title="User accounts"
+        subtitle="Manage coordinator, vendor, and admin logins"
+        icon={UserCog}
+        actions={<CreateStaffDialog />}
+      />
+      <StaffAccountsTable currentUsername={user?.username} />
+    </motion.div>
   )
 }

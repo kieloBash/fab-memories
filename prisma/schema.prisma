@@ -145,9 +145,10 @@ model User {
 
   auditLogs        AuditLog[]
   bookings         Booking[]
-  confirmedBy      Booking[]         @relation("BookingConfirmedBy")
-  verifiedPayments Payment[]         @relation("PaymentVerifiedBy")
-  staffAssignments StaffAssignment[] @relation("CoordinatorAssignments")
+  confirmedBy      Booking[]                   @relation("BookingConfirmedBy")
+  verifiedPayments Payment[]                   @relation("PaymentVerifiedBy")
+  staffAssignments StaffAssignment[]           @relation("CoordinatorAssignments")
+  unavailability   CoordinatorUnavailability[]
 
   @@index([role])
 }
@@ -387,4 +388,16 @@ model AuditWriteFailure {
   attempts    Int         @default(1)
 
   @@index([createdAt])
+}
+
+model CoordinatorUnavailability {
+  id            String   @id @default(cuid())
+  coordinatorId String
+  coordinator   User     @relation(fields: [coordinatorId], references: [id])
+  date          DateTime @db.Date
+  reason        String?
+  createdAt     DateTime @default(now())
+
+  @@unique([coordinatorId, date])
+  @@index([date])
 }

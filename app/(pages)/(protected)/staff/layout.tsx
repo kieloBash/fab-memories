@@ -26,11 +26,12 @@ const adminNavItems = [
 
 const coordinatorNavItems = [
   { href: "/staff/coordinator", label: "Dashboard", icon: "LayoutDashboard", exact: true },
-  // { href: "/staff/coordinator/bookings",  label: "Bookings",        icon: "CalendarDays" },
+  { href: "/staff/coordinator/bookings",  label: "Bookings",        icon: "CalendarDays" },
   { href: "/staff/coordinator/calendar", label: "Event calendar", icon: "CalendarRange" },
   { href: "/staff/coordinator/payments", label: "Payments", icon: "CreditCard" },
   // { href: "/staff/coordinator/vendors", label: "Vendors", icon: "Store" },
   { href: "/staff/coordinator/staff", label: "Staff scheduling", icon: "Users" },
+  { href: "/staff/coordinator/availability", label: "My availability", icon: "CalendarOff" },
   { href: "/staff/coordinator/reports", label: "Reports", icon: "BarChart3" },
   // { href: "/staff/coordinator/documents", label: "Documents",       icon: "FileText" },
 ];

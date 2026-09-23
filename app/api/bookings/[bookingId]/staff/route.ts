@@ -9,6 +9,7 @@ import {
   getStaffAssignmentsByBooking,
   getStaffingComplianceForBooking,
 } from "@/features/staff-assignments/staff-assignments.query"
+import { isCoordinatorUnavailable } from "@/features/availability/availability.query"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
@@ -102,6 +103,20 @@ export async function POST(req: Request, { params }: Params) {
       { error: "This coordinator is already assigned to this booking" },
       { status: 409 },
     )
+
+  // B-04 — a coordinator who has marked themselves unavailable on this date cannot be assigned. No override:
+  // staff must ask them to clear the unavailable day first, or pick someone else.
+  if (await isCoordinatorUnavailable(parsed.data.coordinatorId, booking.eventDate)) {
+    await logAction({
+      userId: actor.id, action: "CREATE", module: "STAFF_SCHEDULE", status: "FAILURE",
+      description: "Blocked: could not assign coordinator — marked unavailable on this date",
+      metadata: { bookingId, coordinatorId: parsed.data.coordinatorId },
+    })
+    return NextResponse.json(
+      { error: "This coordinator has marked themselves unavailable on this date.", code: "COORDINATOR_UNAVAILABLE" },
+      { status: 409 },
+    )
+  }
 
   const assignment = await createStaffAssignment(bookingId, parsed.data)
 

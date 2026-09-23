@@ -80,6 +80,8 @@ export const bookingFilterSchema = z.object({
   eventType: z.enum(EVENT_TYPES).optional(),
   from:      z.string().optional(),
   to:        z.string().optional(),
+  /** Matches against the client's name or the venue, server-side (see getAllBookings). */
+  search:    z.string().max(100).optional(),
 })
 
 export type CreateBookingInput       = z.infer<typeof createBookingSchema>

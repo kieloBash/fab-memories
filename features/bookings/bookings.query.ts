@@ -4,12 +4,12 @@
 import type { BookingStatus, EventType } from "@/app/generated/prisma/client"
 import { prisma } from "@/lib/prisma"
 import { type DbClient, withTx } from "@/lib/db"
-import { BOOKING_INCLUDE, HELD_STATUSES, transitionBooking } from "@/features/bookings/bookings.transition"
+import { BOOKING_INCLUDE, HELD_STATUSES, transitionBooking } from "./bookings.transition"
 import type {
   CreateBookingInput,
   SetContractTermsInput,
   UpdateBookingInput,
-} from "./bookings.schema"
+} from "@/features/bookings/bookings.schema"
 
 const WITH_RELATIONS = BOOKING_INCLUDE
 
@@ -20,7 +20,9 @@ export async function getAllBookings(filters?: {
   eventType?: EventType
   from?: string
   to?: string
+  search?: string
 }) {
+  const search = filters?.search?.trim()
   return prisma.booking.findMany({
     where: {
       status: filters?.status,
@@ -29,6 +31,14 @@ export async function getAllBookings(filters?: {
         gte: filters?.from ? new Date(filters.from) : undefined,
         lte: filters?.to ? new Date(filters.to) : undefined,
       },
+      // Server-side search by client name or venue (case-insensitive) — used by both the admin and
+      // coordinator booking lists.
+      ...(search
+        ? { OR: [
+            { client: { fullName: { contains: search, mode: "insensitive" } } },
+            { venue: { contains: search, mode: "insensitive" } },
+          ] }
+        : {}),
     },
     include: WITH_RELATIONS,
     orderBy: { eventDate: "asc" },

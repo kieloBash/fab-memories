@@ -1,2 +1,4 @@
 - UI active for sidebar
 - fix register
+- staff assignment, lower down the need
+- 
