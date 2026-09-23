@@ -1,7 +1,8 @@
 // features/auth/portal-check.ts
 "use client"
 
-import api, { getApiErrorMessage } from "@/lib/axios"
+import api from "@/lib/axios"
+import { signInErrorMessage } from "@/lib/clerk/portal"
 import { isAxiosError } from "axios"
 
 export type PortalCheck =
@@ -25,9 +26,9 @@ export async function checkPortal(portal: "client" | "staff", getToken: () => Pr
     )
     return { ok: true, destination: data.destination }
   } catch (err) {
-    if (isAxiosError(err) && err.response?.data?.code) {
-      return { ok: false, code: err.response.data.code, message: err.response.data.error ?? getApiErrorMessage(err) }
-    }
-    return { ok: false, code: "CHECK_FAILED", message: "We couldn't verify your account just now. Please try signing in again." }
+    // Messages come from ONE table (lib/clerk/portal.ts) so the page shows the same text before and after the
+    // sign-out redirect that carries the code.
+    const code = (isAxiosError(err) && err.response?.data?.code) || "CHECK_FAILED"
+    return { ok: false, code, message: signInErrorMessage(code, portal) }
   }
 }

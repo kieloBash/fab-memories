@@ -18,12 +18,23 @@
  * reference implementation.
  *
  * See: https://clerk.com/docs/guides/development/custom-flows/authentication/forgot-password
+ *
+ * FIX (sign-in after reset): step 3 used to go straight to /portal WITHOUT the server-side portal check the login
+ * pages run. An account whose database row was missing therefore "reset successfully", and the next ordinary sign-in
+ * failed with 401 and was bounced to "/". It now finishes exactly like the login pages (finishSignIn): the check runs
+ * (and repairs a missing row), deactivated / wrong-portal accounts are refused with a message, and the user lands on
+ * the dashboard the server names.
+ *
+ * Which portal? /staff-login links here with ?portal=staff; anything else is the client flow. The portal decides the
+ * look, the "Back to sign in" link, and which login-page rule the final check applies.
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useSignIn } from "@clerk/nextjs"
+import { useClerk, useSignIn } from "@clerk/nextjs"
+import { finishSignIn, navigateTo } from "@/features/auth/finish-sign-in"
+import { LOGIN_PATH, type Portal } from "@/lib/clerk/portal"
 import { AuthShell } from "@/features/auth/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -35,7 +46,15 @@ import {
 
 export default function ForgotPasswordPage() {
   const { signIn, errors, fetchStatus } = useSignIn()
+  const { signOut } = useClerk()
   const router = useRouter()
+
+  // Read after mount (the page is prerendered, so `window` is not available during the first render).
+  const [portal, setPortal] = useState<Portal>("client")
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("portal") === "staff") setPortal("staff")
+  }, [])
+  const [destination, setDestination] = useState<string | null>(null)
 
   const [codeSent, setCodeSent] = useState(false)
   const [done, setDone]         = useState(false)
@@ -98,25 +117,27 @@ export default function ForgotPasswordPage() {
     }
 
     if (signIn.status === "complete") {
+      let dest: string | null = null
       const { error: finalizeError } = await signIn.finalize({
         navigate: async ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
-            console.log(session.currentTask)
-            return
-          }
-          const url = decorateUrl("/portal")
-          if (url.startsWith("http")) {
-            window.location.href = url
-          } else {
-            router.push(url)
-          }
+          dest = await finishSignIn({
+            portal,
+            session: session as any,
+            decorateUrl,
+            navigate: navigateTo(router.push),
+            signOut: (opts) => signOut(opts),
+            onError: setFormError,
+          })
         },
       })
       if (finalizeError) {
         setFormError(finalizeError.message ?? "Something went wrong finishing sign-in.")
         return
       }
-      setDone(true)
+      if (dest) {
+        setDestination(dest)
+        setDone(true)
+      }
       return
     }
 
@@ -140,7 +161,7 @@ export default function ForgotPasswordPage() {
   if (done) {
     return (
       <AuthShell
-        variant="client"
+        variant={portal}
         eyebrow="All set"
         title="Password reset"
         subtitle="Your password has been updated"
@@ -152,7 +173,7 @@ export default function ForgotPasswordPage() {
           <p className="text-[13px] text-text-muted text-center">
             You're signed in with your new password.
           </p>
-          <Button className="w-full" onClick={() => router.push("/portal")}>
+          <Button className="w-full" onClick={() => router.push(destination ?? LOGIN_PATH[portal])}>
             Continue to your account
             <ArrowRight size={14} aria-hidden="true" />
           </Button>
@@ -165,7 +186,7 @@ export default function ForgotPasswordPage() {
   if (signIn?.status === "needs_new_password") {
     return (
       <AuthShell
-        variant="client"
+        variant={portal}
         eyebrow="Almost done"
         title="Set a new password"
         subtitle="Choose a new password for your account"
@@ -220,7 +241,7 @@ export default function ForgotPasswordPage() {
   if (codeSent) {
     return (
       <AuthShell
-        variant="client"
+        variant={portal}
         eyebrow="Reset password"
         title="Check your email"
         subtitle={`Enter the code we sent to ${email}`}
@@ -281,7 +302,7 @@ export default function ForgotPasswordPage() {
   // ── Step 1 UI: request code ────────────────────────────────────────
   return (
     <AuthShell
-      variant="client"
+      variant={portal}
       eyebrow="Reset password"
       title="Forgot your password?"
       subtitle="Enter your email and we'll send you a reset code"
@@ -327,7 +348,7 @@ export default function ForgotPasswordPage() {
       </form>
 
       <Link
-        href="/sign-in"
+        href={LOGIN_PATH[portal]}
         className="mt-6 flex items-center justify-center gap-1.5 text-[13px] text-text-muted hover:text-primary transition-colors"
       >
         <ArrowLeft size={13} aria-hidden="true" />

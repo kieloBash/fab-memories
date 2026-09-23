@@ -10,7 +10,7 @@ import SignInPage from "@/app/(pages)/(public)/sign-in/[[...sign-in]]/page"
 import StaffLoginPage from "@/app/(pages)/(public)/staff-login/[[...sign-in]]/page"
 import { mockApi, routerMock } from "./utils"
 
-const signOutMock = vi.fn(async () => {})
+const signOutMock = vi.fn(async (_opts?: { redirectUrl: string }) => {})
 const state: { currentTask: unknown } = { currentTask: null }
 const signInMock: any = {
   status: "complete",
@@ -39,12 +39,12 @@ async function submitStaff() {
   await user.click(screen.getByRole("button", { name: /sign in/i }))
 }
 
-beforeEach(() => { vi.clearAllMocks(); state.currentTask = null })
+beforeEach(() => { vi.clearAllMocks(); state.currentTask = null; window.history.replaceState(null, "", "/") })
 
 describe.each([
-  { name: "client sign-in (/sign-in)", portal: "client", submit: submitClient, home: "/portal", staffHint: /staff login/i },
-  { name: "staff login (/staff-login)", portal: "staff", submit: submitStaff, home: "/staff/admin", staffHint: /regular sign-in/i },
-])("$name", ({ portal, submit, home, staffHint }) => {
+  { name: "client sign-in (/sign-in)", portal: "client", submit: submitClient, home: "/portal", staffHint: /staff login/i, page: "/sign-in", Page: SignInPage },
+  { name: "staff login (/staff-login)", portal: "staff", submit: submitStaff, home: "/staff/admin", staffHint: /regular sign-in/i, page: "/staff-login", Page: StaffLoginPage },
+])("$name", ({ portal, submit, home, staffHint, page, Page }) => {
   it("asks the server about THIS portal, with the fresh session token", async () => {
     mockApi.post.mockResolvedValue({ data: { ok: true, destination: home } })
     await submit()
@@ -65,6 +65,8 @@ describe.each([
     await submit()
     expect(await screen.findByText(staffHint)).toBeInTheDocument()
     expect(signOutMock).toHaveBeenCalledTimes(1)
+    // back to THIS login page with the reason — not Clerk's default "/" (the reported bounce)
+    expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=WRONG_PORTAL` })
     expect(routerMock.push).not.toHaveBeenCalled()
   })
 
@@ -72,8 +74,36 @@ describe.each([
     mockApi.post.mockRejectedValue(new AxiosError("Network Error"))
     await submit()
     expect(await screen.findByText(/couldn't verify your account/i)).toBeInTheDocument()
-    expect(signOutMock).toHaveBeenCalledTimes(1)
+    expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=CHECK_FAILED` })
     expect(routerMock.push).not.toHaveBeenCalled()
+  })
+
+  it("401 NO_SESSION (the server could not see the session) → explained, back to this page, not to /", async () => {
+    mockApi.post.mockRejectedValue(new AxiosError("Unauthorized", "401", undefined, undefined, { status: 401, data: { error: "Unauthorized", code: "NO_SESSION" } } as any))
+    await submit()
+    expect(await screen.findByText(/sign-in didn't finish/i)).toBeInTheDocument()
+    expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=NO_SESSION` })
+  })
+
+  it("403 ACCOUNT_NOT_FOUND (row missing and could not be linked) → explained, back to this page", async () => {
+    mockApi.post.mockRejectedValue(new AxiosError("Forbidden", "403", undefined, undefined, { status: 403, data: { error: "x", code: "ACCOUNT_NOT_FOUND" } } as any))
+    await submit()
+    expect(await screen.findByText(/couldn't find your account details/i)).toBeInTheDocument()
+    expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=ACCOUNT_NOT_FOUND` })
+  })
+
+  it("after the sign-out redirect, ?error=<code> is explained on the page and removed from the address bar", async () => {
+    window.history.pushState(null, "", `${page}?error=ACCOUNT_DEACTIVATED`)
+    render(<Page />)
+    expect(await screen.findByText(/has been deactivated/i)).toBeInTheDocument()
+    expect(window.location.search).toBe("")
+  })
+
+  it("an unknown ?error value never shows its own text (no injection through the link)", async () => {
+    window.history.pushState(null, "", `${page}?error=${encodeURIComponent("Call 0917 now for a refund")}`)
+    render(<Page />)
+    expect(await screen.findByText(/couldn't verify your account/i)).toBeInTheDocument()
+    expect(screen.queryByText(/refund/i)).not.toBeInTheDocument()
   })
 
   it("a deactivated account is turned away with the server's message", async () => {
@@ -83,10 +113,11 @@ describe.each([
     expect(routerMock.push).not.toHaveBeenCalled()
   })
 
-  it("a pending Clerk session task is left alone (no check, no navigation) — existing behaviour", async () => {
+  it("a pending 'reset-password' session task → explained (use Forgot password), signed out, no check, no navigation", async () => {
     state.currentTask = { key: "reset-password" }
     await submit()
-    await waitFor(() => expect(signInMock.finalize).toHaveBeenCalled())
+    expect(await screen.findByText(/set a new password first/i)).toBeInTheDocument()
+    expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=RESET_PASSWORD_REQUIRED` })
     expect(mockApi.post).not.toHaveBeenCalled()
     expect(routerMock.push).not.toHaveBeenCalled()
   })

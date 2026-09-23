@@ -8,12 +8,16 @@ export async function getCurrentRole(): Promise<Role | null> {
 }
 
 export async function getCurrentDbUser() {
-  if (!session.current) return null
-  return prisma.user.findUnique({ where: { username: session.current.username } })
+  const s = session.current
+  if (!s) return null
+  if (s.username) return prisma.user.findUnique({ where: { username: s.username } })
+  return prisma.user.findUnique({ where: { clerkId: s.clerkId! } })
 }
 
 export async function getCurrentClerkId(): Promise<string | null> {
-  return (await getCurrentDbUser())?.clerkId ?? null
+  const s = session.current
+  if (!s) return null
+  return s.clerkId ?? (await getCurrentDbUser())?.clerkId ?? null
 }
 
 export async function getCurrentClerkUser() {

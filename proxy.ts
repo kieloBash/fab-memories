@@ -36,6 +36,7 @@ const isPublic = createRouteMatcher([
     "/sign-in(.*)",
     "/sign-up(.*)",
     "/staff-login(.*)",
+    "/forgot-password(.*)",
     "/api/webhooks(.*)",
     "/vendor-brief(.*)",
     "/api/vendor-brief(.*)",
@@ -61,7 +62,7 @@ export default clerkMiddleware(async (auth, req) => {
     // guard is still not open to the internet. (Each route still checks the ROLE itself — this is the outer wall.)
     if (isApi(req)) {
         const { userId } = await auth()
-        if (!userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        if (!userId) return NextResponse.json({ error: "Unauthorized", code: "NO_SESSION" }, { status: 401 })
         return NextResponse.next()
     }
 

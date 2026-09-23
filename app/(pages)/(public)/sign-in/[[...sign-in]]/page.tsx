@@ -1,80 +1,73 @@
-// app/(pages)/(public)/sign-in/[[...sign-in]]/page.tsx
+// app/(pages)/(public)/staff-login/[[...sign-in]]/page.tsx
 "use client"
 
 /**
- * Custom sign-in flow for CLIENT users, built on Clerk Core 3's redesigned
- * useSignIn() hook. Core 3 replaced the old create()/setActive()/isLoaded
- * pattern:
+ * Custom staff sign-in flow — username + password only, no sign-up path.
+ * Built on Clerk Core 3's useSignIn() hook (same API as the client
+ * /sign-in page — see that file for the full Core 2 → Core 3 mapping).
  *
- *   Core 2                                    Core 3
- *   { isLoaded, signIn, setActive }        →  { signIn, errors, fetchStatus }
- *   signIn.create({ identifier, password })→  signIn.password({ emailAddress, password })
- *   setActive({ session: createdSessionId})→  signIn.finalize({ navigate })
- *
- * See: https://clerk.com/docs/guides/development/custom-flows/authentication/email-password
+ * Note on the `emailAddress` field name: Clerk's Core 3 `signIn.password()`
+ * method takes its identifier under a parameter literally named
+ * `emailAddress` in the current docs, even though this app signs staff in
+ * by username. In testing, Clerk resolves whatever identifier type is
+ * passed (username, email, or phone) through this same field — but if
+ * your Clerk instance rejects a username here, check the Username
+ * sign-in toggle under User & Authentication in the Clerk Dashboard and
+ * confirm with Clerk's current docs for username-specific behavior.
  */
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import Link from "next/link"
+import { useClerk, useSignIn } from "@clerk/nextjs"
+import { finishSignIn, navigateTo, useSignInErrorFromUrl } from "@/features/auth/finish-sign-in"
+import { AuthShell } from "@/features/auth/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AuthShell } from "@/features/auth/components/auth-shell"
-import { useClerk, useSignIn } from "@clerk/nextjs"
-import { checkPortal } from "@/features/auth/portal-check"
-import { AlertCircle, ArrowRight, Eye, EyeOff, Lock, Mail } from "lucide-react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { AlertCircle, UserCog, Lock, Eye, EyeOff, ArrowRight } from "lucide-react"
 
-export default function SignInPage() {
+export default function StaffLoginPage() {
   const { signIn, errors, fetchStatus } = useSignIn()
   const { signOut } = useClerk()
   const router = useRouter()
 
-  // const [email, setEmail] = useState("")
-  const [identifier, setIdentifier] = useState("")
+  const [username, setUsername] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // A refused sign-in comes back to this page as ?error=<code> — show why.
+  useSignInErrorFromUrl("staff", setFormError)
 
   const isSubmitting = fetchStatus === "fetching"
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log("submitting")
     e.preventDefault()
     setFormError(null)
 
     const { error } = await signIn.password({
-      identifier,
+      emailAddress: username,
       password,
     })
 
     if (error) {
-      setFormError(error.message ?? "Couldn't sign in. Check your email and password.")
+      setFormError(error.message ?? "Couldn't sign in. Check your username and password.")
       return
     }
 
     if (signIn.status === "complete") {
       const { error: finalizeError } = await signIn.finalize({
         navigate: async ({ session, decorateUrl }) => {
-          // Session tasks (e.g. reset-password, setup-mfa) aren't configured
-          // for CLIENT accounts in this app — fall through to /portal.
-          if (session?.currentTask) {
-            console.log(session.currentTask)
-            return
-          }
-          // Is this account allowed on THIS login page? (server-side check; also revokes the session if not)
-          const check = await checkPortal("client", () => session?.getToken())
-          if (!check.ok) {
-            setFormError(check.message)
-            try { await signOut() } catch { /* the server already revoked the session */ }
-            return
-          }
-          const url = decorateUrl(check.destination)
-          if (url.startsWith("http")) {
-            window.location.href = url
-          } else {
-            router.push(url)
-          }
+          // Pending tasks, the server-side portal check, and refusals (sign out → back HERE with ?error=<code>,
+          // not to "/") are handled in one place for every login page — see features/auth/finish-sign-in.ts.
+          await finishSignIn({
+            portal: "staff",
+            session: session as any,
+            decorateUrl,
+            navigate: navigateTo(router.push),
+            signOut: (opts) => signOut(opts),
+            onError: setFormError,
+          })
         },
       })
       if (finalizeError) {
@@ -84,15 +77,12 @@ export default function SignInPage() {
     }
 
     if (signIn.status === "needs_second_factor") {
-      setFormError("Two-factor verification is required. Please contact support.")
+      setFormError("Two-factor verification is required. Please contact your administrator.")
       return
     }
 
     if (signIn.status === "needs_client_trust") {
-      // Device Trust — signing in from an unfamiliar device with a password.
-      // Full handling requires an email-code verification step; not yet
-      // implemented in this flow. See Clerk's Device Trust docs.
-      setFormError("We don't recognize this device. Please contact support to verify your sign-in.")
+      setFormError("We don't recognize this device. Please contact your administrator to verify your sign-in.")
       return
     }
 
@@ -101,10 +91,10 @@ export default function SignInPage() {
 
   return (
     <AuthShell
-      variant="client"
-      eyebrow="Welcome back"
+      variant="staff"
+      eyebrow="Staff access"
       title="Sign in to your account"
-      subtitle="Track your booking, payments, and documents"
+      subtitle="For Fab Memories Events administrators, coordinators, and vendors"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {formError && (
@@ -115,17 +105,19 @@ export default function SignInPage() {
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="identifier">Email address/Username</Label>
+          <Label htmlFor="username">Username</Label>
           <div className="relative">
-            <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden="true" />
+            <UserCog size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden="true" />
             <Input
-              id="identifier"
-              // type="email"
-              // autoComplete="email"
+              id="username"
+              type="text"
+              autoComplete="username"
+              autoCapitalize="off"
+              autoCorrect="off"
               required
-              value={identifier}
-              onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="you@example.com/username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="e.g. admin, coordinator"
               className="pl-10"
             />
           </div>
@@ -137,7 +129,7 @@ export default function SignInPage() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
-            <Link href="/forgot-password" className="text-[12px] font-medium text-primary hover:underline">
+            <Link href="/forgot-password?portal=staff" className="text-[12px] font-medium text-primary hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -173,19 +165,16 @@ export default function SignInPage() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-text-muted">
-        Don't have an account?{" "}
-        <Link href="/sign-up" className="font-medium text-primary hover:underline">
-          Sign up
-        </Link>
+      <p className="mt-6 text-center text-[12px] text-text-muted">
+        Don't have staff access? Contact your administrator to have an account created.
       </p>
 
-      {/* <p className="mt-3 text-center text-[12px] text-text-muted">
-        Fab Memories Events staff?{" "}
-        <Link href="/staff-login" className="font-medium text-text-sub hover:text-primary hover:underline">
-          Staff sign in
+      <p className="mt-3 text-center text-[12px] text-text-muted">
+        Looking to book an event?{" "}
+        <Link href="/sign-in" className="font-medium text-primary hover:underline">
+          Client sign in
         </Link>
-      </p> */}
+      </p>
     </AuthShell>
   )
 }

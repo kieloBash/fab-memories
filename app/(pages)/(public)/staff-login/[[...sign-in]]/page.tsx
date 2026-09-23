@@ -20,7 +20,7 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useClerk, useSignIn } from "@clerk/nextjs"
-import { checkPortal } from "@/features/auth/portal-check"
+import { finishSignIn, navigateTo, useSignInErrorFromUrl } from "@/features/auth/finish-sign-in"
 import { AuthShell } from "@/features/auth/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -36,6 +36,8 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  // A refused sign-in comes back to this page as ?error=<code> — show why.
+  useSignInErrorFromUrl("staff", setFormError)
 
   const isSubmitting = fetchStatus === "fetching"
 
@@ -56,23 +58,16 @@ export default function StaffLoginPage() {
     if (signIn.status === "complete") {
       const { error: finalizeError } = await signIn.finalize({
         navigate: async ({ session, decorateUrl }) => {
-          if (session?.currentTask) {
-            console.log(session.currentTask)
-            return
-          }
-          // Is this account allowed on THIS login page? (server-side check; also revokes the session if not)
-          const check = await checkPortal("staff", () => session?.getToken())
-          if (!check.ok) {
-            setFormError(check.message)
-            try { await signOut() } catch { /* the server already revoked the session */ }
-            return
-          }
-          const url = decorateUrl(check.destination)
-          if (url.startsWith("http")) {
-            window.location.href = url
-          } else {
-            router.push(url)
-          }
+          // Pending tasks, the server-side portal check, and refusals (sign out → back HERE with ?error=<code>,
+          // not to "/") are handled in one place for every login page — see features/auth/finish-sign-in.ts.
+          await finishSignIn({
+            portal: "staff",
+            session: session as any,
+            decorateUrl,
+            navigate: navigateTo(router.push),
+            signOut: (opts) => signOut(opts),
+            onError: setFormError,
+          })
         },
       })
       if (finalizeError) {
@@ -134,7 +129,7 @@ export default function StaffLoginPage() {
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
-            <Link href="/forgot-password" className="text-[12px] font-medium text-primary hover:underline">
+            <Link href="/forgot-password?portal=staff" className="text-[12px] font-medium text-primary hover:underline">
               Forgot password?
             </Link>
           </div>

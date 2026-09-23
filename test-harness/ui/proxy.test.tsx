@@ -23,7 +23,7 @@ async function call(path: string, s: Session = { userId: null }) {
 
 describe("public routes stay reachable without a session", () => {
   it.each([
-    "/", "/sign-in", "/sign-up", "/staff-login", "/packages", "/terms",
+    "/", "/sign-in", "/sign-up", "/staff-login", "/forgot-password", "/forgot-password?portal=staff", "/packages", "/terms",
     "/api/public/packages", "/api/webhooks/clerk", "/api/vendor-brief/abc123", "/vendor-brief/abc123",
   ])("%s → allowed", async (path) => {
     const r = await call(path)
@@ -41,7 +41,7 @@ describe("API is DENY-BY-DEFAULT for signed-out callers", () => {
     const r = await call(path)
     expect(r.status).toBe(401)
     expect(r.passed).toBe(false)
-    expect(await r.res.json()).toEqual({ error: "Unauthorized" })
+    expect(await r.res.json()).toEqual({ error: "Unauthorized", code: "NO_SESSION" })
   })
 
   it.each(["ADMIN", "COORDINATOR", "CLIENT", "VENDOR"])("a signed-in %s reaches the route (which then checks the ROLE itself)", async (role) => {

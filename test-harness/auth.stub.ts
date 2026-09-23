@@ -28,6 +28,11 @@ export async function getCurrentDbUser() {
   return user && process.env.TEST_GHOST ? { ...user, id: "ghost-user" } : user
 }
 
+/** The Clerk id of the stubbed session (portal-check uses it when the database row is missing). */
+export async function getCurrentClerkId() {
+  return (await getCurrentDbUser())?.clerkId ?? null
+}
+
 /** Records how many times a session revocation was requested (tests read globalThis.__revokeCalls). TEST_REVOKE_FAIL=1 simulates Clerk being unreachable. */
 export async function revokeCurrentSession(): Promise<boolean> {
   ;(globalThis as any).__revokeCalls = ((globalThis as any).__revokeCalls ?? 0) + 1

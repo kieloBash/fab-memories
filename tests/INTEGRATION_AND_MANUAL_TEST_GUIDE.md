@@ -120,7 +120,9 @@ bookings search.
 | C1.4 | Signed in as `coordinator`, open `/staff/admin` | Not allowed (redirect / unauthorized); `/staff/coordinator` works | ☐ |
 | C1.5 | Signed out, open `/portal/bookings` | Redirected to `/sign-in` | ☐ |
 | C1.6 | Create a new client at `/sign-up` (webhook tunnel running) | Account created; lands in `/portal`; a CLIENT row exists (`/staff/admin/audit` shows "User account created (role: CLIENT)") | ☐ |
-| C1.7 | `/forgot-password` with a client's e-mail | Reset flow starts (Clerk) | ☐ |
+| C1.7 | `/sign-in` → **Forgot password?** → complete the reset (real mailbox) → sign out → sign in with the **new** password | Lands on `/portal` both times; **never** "Unauthorized" or bounced to `/`. Full test: `tests/LOGIN_AFTER_PASSWORD_RESET_TEST.md` | ☐ |
+| C1.7b | `/staff-login` → **Forgot password?** | URL has `?portal=staff`; staff look; after the reset → staff dashboard | ☐ |
+| C1.7c | Any refused sign-in (e.g. C1.1) | Stays on that login page with the reason; never lands on `/` | ☐ |
 | C1.8 | Sign out from any page | Back to the public site; protected pages redirect again | ☐ |
 
 ### C2. Booking request — client (Module 2)
@@ -349,7 +351,7 @@ This mirrors the automated `00-golden-path` test. Use a **fresh** date about 6 m
 | Part | Tests | Passed | Failed | Not run |
 |---|---|---|---|---|
 | B Smoke | 5 | | | |
-| C1 Auth | 8 | | | |
+| C1 Auth | 10 | | | |
 | C2 Booking | 6 | | | |
 | C3 Terms | 5 | | | |
 | C4 Payments | 11 | | | |
