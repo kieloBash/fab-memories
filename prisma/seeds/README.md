@@ -1,5 +1,7 @@
 # Main seed
 
+Full walkthrough (dev, test, production, resets): `documents/SEEDING_AND_RESET_GUIDE.md`.
+
 One entry point for all seed data: `prisma/seed.ts`. The seeds live in `prisma/seeds/` and are listed in `prisma/seeds/index.ts`.
 
 ```bash
@@ -51,11 +53,12 @@ The old commands still work: `npx tsx prisma/seed-reports.ts [--bulk=N] [--reset
 It prints the database target, the counts, and a sample of the Clerk emails, then requires you to type `yes` (`--yes` skips this for scripts).
 
 **Safety rules (all checked before anything is deleted):**
-- A **live** Clerk key (`sk_live_…`) is refused.
+- A **live** Clerk key (`sk_live_…`) or `NODE_ENV=production` is refused — for **every** seeding command, not only `--fresh` (`productionReason()` in `guards.ts`). `--list` and `--reset=<addon>` stay allowed.
+- The wipe empties every table listed in `WIPE_ORDER` (`guards.ts`) in one transaction; `test-harness/unit/seed-guards.unit.test.ts` fails if a new model is missing from it.
 - The database role must be able to delete audit rows. The restricted `app_runtime` role is refused — put the **owner** connection in `DATABASE_URL` when seeding.
 - Not an interactive terminal and no `--yes` → refused.
 - `SEED_KEEP_CLERK_EMAILS=you@example.com,other@example.com` (in `.env`) protects those Clerk accounts, and their database rows.
-- `--fresh --keep-clerk` leaves Clerk alone; only the seeded accounts are replaced.
+- `--fresh --keep-clerk` leaves Clerk alone; only the seeded accounts are replaced (found by id, username and both emails — `clerk-seed-users.ts`).
 
 Deleting many Clerk users is paced and retried when Clerk rate-limits (HTTP 429).
 

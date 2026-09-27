@@ -2,8 +2,7 @@
 
 # Seeding & resetting the database (and Clerk) — Fab Memories
 
-This guide matches the code as of 2026-09-27: `prisma/seed.ts`, `prisma/seeds/*`, `prisma/seeds/clerk-wipe.ts`.
-Read **§0 Known issues** first. Two of them affect resets today.
+This guide matches the code as of 2026-09-27, **after the seed fixes**: `prisma/seed.ts`, `prisma/seeds/*` (including `guards.ts` and `clerk-seed-users.ts`).
 
 ---
 
@@ -12,12 +11,13 @@ Read **§0 Known issues** first. Two of them affect resets today.
 | I want to… | Command | Touches Clerk? | Safe on production? |
 |---|---|---|---|
 | See what's registered and whether the DB is empty | `npx tsx prisma/seed.ts --list` | No | Yes (read-only) |
-| Seed the demo data into an **empty** DB | `npx tsx prisma/seed.ts` | Creates 8 users | **No** (demo passwords) |
-| Seed base + all test scenarios | `npx tsx prisma/seed.ts --all` | Creates 8 users | **No** |
-| Add one scenario set on top | `npx tsx prisma/seed.ts --with=testing` (or `reports`, `integrity`) | No | No |
+| Seed the demo data into an **empty** DB | `npx tsx prisma/seed.ts` | Creates 8 users | **Refused** (live key / production) |
+| Seed base + all test scenarios | `npx tsx prisma/seed.ts --all` | Creates 8 users | **Refused** |
+| Add one scenario set on top | `npx tsx prisma/seed.ts --with=testing` (or `reports`, `integrity`) | No | **Refused** |
 | Remove one scenario set | `npx tsx prisma/seed.ts --reset=testing` | No | — |
 | Remove all scenario sets (keep base) | `npx tsx prisma/seed.ts --reset-all` | No | — |
-| **Wipe everything + delete Clerk users + rebuild** | `npx tsx prisma/seed.ts --fresh --all` | **Deletes all** (except keep-list) | **Refused** (live key) |
+| **Wipe everything + delete Clerk users + rebuild** | `npx tsx prisma/seed.ts --fresh --all` | **Deletes all** (except keep-list) | **Refused** |
+| Wipe the DB, keep Clerk as it is | `npx tsx prisma/seed.ts --fresh --all --keep-clerk` | Replaces only the 8 seed accounts | **Refused** |
 | Shortcuts in `package.json` | `npm run seed:testing` / `npm run seed:testing:reset` | No | — |
 
 Add-on seeds:
@@ -28,15 +28,15 @@ Add-on seeds:
 
 ---
 
-## 0. Known issues (as of this guide)
+## 0. Fixed issues (2026-09-27)
 
-| # | Problem | Effect | Workaround until fixed |
-|---|---|---|---|
-| K1 | `--fresh` does not delete `Notification` or `CoordinatorUnavailability` rows. Both reference `User` with `ON DELETE RESTRICT`. | Once anyone has received a notification or entered unavailability, `--fresh` fails with a foreign-key error. The wipe runs in one transaction, so **nothing is deleted** — neither the DB nor Clerk. It is safe, but the reset is blocked. | Run §5 step 0 (two `DELETE`s) first. |
-| K2 | The base seed looks up staff in Clerk by `admin.fabmemories@example.com`, but it created them as `seed.admin@example.com`. | Emptying the DB **without** also deleting Clerk users breaks the next seed for staff: Clerk says "username is taken". This happens with `--fresh --keep-clerk`, `npx prisma migrate reset`, or a manual `TRUNCATE`. | Don't use those. If it already happened, delete the `seed.*@example.com` users in Clerk Dashboard → Users, then seed again. |
-| K3 | The base seed has no production guard. With a live Clerk key and an empty DB, it creates `admin / FabMemories123!`. | Public demo accounts in production. | Never run `npx tsx prisma/seed.ts` against production (see §7). |
+These used to break resets. They are fixed now, and the regression tests are in `test-harness/unit/seed-guards.unit.test.ts`.
 
-Fixes for K1–K3 are proposed at the end (§9). They are not applied yet.
+| # | Was | Now |
+|---|---|---|
+| K1 | `--fresh` failed with `Notification_userId_fkey` / `CoordinatorUnavailability_coordinatorId_fkey` once anyone had a notification or an unavailability day | `--fresh` empties every table in the order set by `WIPE_ORDER` (`prisma/seeds/guards.ts`). A test fails if a model is added to `schema.prisma` without being added to that list. |
+| K2 | Emptying the DB without wiping Clerk (`--keep-clerk`, `migrate reset`) made the next seed fail with "username is taken" | The seed finds its own accounts in Clerk by id, username **and** both possible emails, then removes them before re-creating them. |
+| K3 | The plain seed would create `admin / FabMemories123!` against a live Clerk key | Every seeding command (base, add-ons, `--fresh`, including `--fresh --keep-clerk`) is refused when `CLERK_SECRET_KEY` is `sk_live_…` or `NODE_ENV=production`. `--list` and `--reset=<addon>` stay allowed. |
 
 ---
 
@@ -123,14 +123,15 @@ Then sign in with one account per role (table in §2). Or run `tests/login-porta
 
 ## 5. Full reset — wipe the DB **and** delete the Clerk users (development only)
 
-### Step 0 — work around K1 (until the fix in §9 is applied)
+### Step 0 — check which Clerk instance the seed will use
 
-Run this in the Supabase SQL editor, or with `psql "$DIRECT_URL"`, as the owner:
+The seed reads `.env`; the app reads `.env.local`. Both must hold the **same** Clerk keys, or the seed creates accounts in an instance the app does not use. This prints only the start of each key:
 
-```sql
-DELETE FROM "Notification";
-DELETE FROM "CoordinatorUnavailability";
+```bash
+grep -h "CLERK_SECRET_KEY\|CLERK_PUBLISHABLE_KEY" .env .env.local | cut -c1-40
 ```
+
+In the `--fresh` preview (step 2), the Clerk user count should roughly match the database user count. **0 Clerk users next to a non-empty database means the keys differ** — cancel and fix `.env`.
 
 ### Step 1 — protect your own Clerk login (optional)
 
@@ -162,11 +163,11 @@ Type `yes` to continue. **Anything else cancels, with nothing deleted.** That ma
 ### What happens after `yes`, in order
 
 1. **Guard rails, checked before any deletion:**
-   - a live Clerk key (`sk_live_…`) is refused;
+   - a live Clerk key (`sk_live_…`) or `NODE_ENV=production` is refused, with or without `--keep-clerk`;
    - a missing `CLERK_SECRET_KEY` is refused;
    - a DB role that cannot delete audit rows is refused;
    - a non-interactive terminal without `--yes` is refused.
-2. **Database wipe in one transaction.** Deletes the audit failures, audit log, audit chain state, staff assignments, booking-vendors, vendors, installments, payments, bookings and packages, then the users (except kept clients).
+2. **Database wipe in one transaction.** Every table in `WIPE_ORDER` (`prisma/seeds/guards.ts`): the audit tables, notifications, coordinator unavailability, staff assignments, booking-vendors, vendors, installments, payments, bookings and packages, then the users (except kept clients). If anything fails, nothing is deleted.
 3. **Clerk deletion.** Users are deleted one by one, paced, with retries on 429 rate limits. Progress shows as `n/total`.
    - If any deletion fails, the script stops and lists them. The DB is already empty at that point, so fix the cause and run `--fresh` again.
 4. **Rebuild:** base, then the add-ons you selected. `--fresh` alone means base only; `--fresh --all` means everything.
@@ -181,10 +182,17 @@ npx tsx prisma/seed.ts --fresh --all --yes
 
 Only use this in CI against a disposable DB and a dev Clerk instance.
 
-### Do **not** use for a full reset
+### DB-only reset (keep Clerk)
 
-- **`npx prisma migrate reset`.** It drops the DB and runs the base seed, but never deletes Clerk users. The result is orphaned Clerk users and K2 failures.
-- **`--fresh --keep-clerk`.** Also hits K2 for staff accounts.
+```bash
+npx tsx prisma/seed.ts --fresh --all --keep-clerk
+```
+
+This wipes the database and rebuilds it. In Clerk, only the 8 seed accounts are removed and re-created (fix K2). Every other Clerk user stays, but loses their database row and bookings; their row is re-created as CLIENT, or with the role in their Clerk metadata, the next time they sign in.
+
+### Avoid
+
+- **`npx prisma migrate reset`.** It works for the seed accounts now, but other Clerk users are left without database rows, and there is no preview or confirmation. Prefer `--fresh`.
 - **Deleting users in the Clerk Dashboard without wiping the DB.** The `user.deleted` webhook only marks rows inactive, so logins break while the rows remain.
 
 ---
@@ -200,7 +208,7 @@ There is no command for "Clerk only". Choose one:
 
 ## 7. Production
 
-**Never run the seed against production.** The base seed creates accounts with a published password and fake bookings. `--fresh` refuses live keys; the plain seed does not (K3).
+**Never run the seed against production.** The base seed creates accounts with a published password and fake bookings. Since fix K3, every seeding command refuses a live Clerk key (`sk_live_…`) and `NODE_ENV=production`. Treat that as a safety net, not permission: a production database with a *test* Clerk key would not be detected.
 
 ### First deployment
 
@@ -247,21 +255,19 @@ Don't wipe. The audit trail is tamper-evident on purpose, and `--fresh` refuses 
 | `DATABASE_URL is required` | The variable is only in `.env.local` | Put it in `.env` |
 | `Skipping "base": the database already has data` | The DB is not empty | Use `--with=<addon>`, or `--fresh` for a full rebuild |
 | `"<addon>" needs the "base" data first` | Add-on run on an empty DB | `npx tsx prisma/seed.ts --with=<addon>` (base runs first) |
-| `Refusing to wipe Clerk users: … LIVE key` | `CLERK_SECRET_KEY` is `sk_live_` | Use the dev key. Production is never wiped. |
 | `The database role "app_runtime" cannot delete audit rows` | Runtime connection used | Put the owner connection in `DATABASE_URL` |
 | `Not an interactive terminal — pass --yes` | Piped / CI | Add `--yes` (only against disposable targets) |
-| Foreign key error on `Notification_userId_fkey` or `CoordinatorUnavailability_coordinatorId_fkey` | K1 | §5 step 0, then run again. Nothing was deleted. |
-| Clerk: `That username is taken` / `form_identifier_exists` | K2 (DB emptied, Clerk not) | Delete the `seed.*@example.com` users in Clerk, then seed |
+| `Refusing to seed: CLERK_SECRET_KEY is a LIVE key` / `NODE_ENV is "production"` | Fix K3 | Use the dev instance's `sk_test_` key and unset `NODE_ENV` |
+| `--fresh` preview shows **0 Clerk users** but the DB has users | `.env` and `.env.local` hold different Clerk keys | Cancel, then copy the keys from `.env.local` into `.env` (§5 step 0) |
+| Foreign key error during `--fresh` | A new table is not in `WIPE_ORDER` | Add it to `prisma/seeds/guards.ts` (the unit test names it). Nothing was deleted. |
+| Clerk: `That username is taken` / `form_identifier_exists` | A seed username belongs to a Clerk user with a different id and email | Delete that user in Clerk Dashboard → Users, then run the seed again |
 | Unique constraint on `clerkId` during seed | A webhook created the row first | Stop the dev server / tunnel while seeding (§1.4), then `--fresh` |
 | `n FAILED` during Clerk deletion | Network or a Clerk error | The DB is already wiped. Run `--fresh` again (already-deleted users count as done). |
 | Seeded users can't sign in | `SEED_CLERK_STUB` is set | Unset it. The stub is an offline fake. |
 
 ---
 
-## 9. Proposed fixes (not applied — need your go-ahead)
+## 9. Still optional (not built)
 
-1. **K1:** add `notification` and `coordinatorUnavailability` to the `--fresh` wipe (`prisma/seeds/cli.ts`), plus a test that fails if a new table referencing `User` is ever left out of the wipe.
-2. **K2:** in the base seed's Clerk cleanup, look staff up by username and by `seed.<username>@example.com`. This makes `--keep-clerk` and `migrate reset` work.
-3. **K3:** the base seed refuses a live Clerk key, and refuses `NODE_ENV=production`.
-4. **Optional:** add `seed`, `seed:all`, `seed:fresh`, `seed:list` scripts to `package.json`.
-5. **Optional:** add a `prisma/seeds/bootstrap-admin.ts` command for production. It would create one admin from env variables, with no demo data and a required strong password, replacing the manual steps in §7.4.
+1. `seed`, `seed:all`, `seed:fresh`, `seed:list` scripts in `package.json`.
+2. A `bootstrap-admin` command for production: one admin created from environment variables, with no demo data, replacing the manual steps in §7.

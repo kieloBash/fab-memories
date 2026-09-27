@@ -52,6 +52,7 @@ function makeFileStub(path: string): any {
       getUserList: async (p: any = {}) => {
         let all = load()
         if (p.emailAddress?.length) all = all.filter((u) => u.emailAddresses.some((e) => p.emailAddress.includes(e.emailAddress)))
+        if (p.username?.length) all = all.filter((u) => !!u.username && p.username.includes(u.username))
         const limit = p.limit ?? 10, offset = p.offset ?? 0
         return { data: all.slice(offset, offset + limit), totalCount: all.length }
       },

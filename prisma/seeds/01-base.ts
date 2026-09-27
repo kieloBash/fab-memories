@@ -37,6 +37,8 @@ import {
   VendorCategory,
 } from "@/app/generated/prisma/client"
 import { clerk, prisma, type SeedModule } from "./_shared"
+import { removeSeedUserFromClerk } from "./clerk-seed-users"
+import { clerkEmailForSeedUser, productionReason } from "./guards"
 
 function futureDate(days: number): Date {
   const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setDate(d.getDate() + days); return d
@@ -45,21 +47,15 @@ function pastDate(days: number): Date {
   const d = new Date(); d.setUTCHours(0, 0, 0, 0); d.setDate(d.getDate() - days); return d
 }
 
-async function cleanupClerkUser(email: string, clerkId?: string) {
-  if (clerkId) { try { await clerk.users.deleteUser(clerkId) } catch { } }
-  try {
-    const r = await clerk.users.getUserList({ emailAddress: [email], limit: 1 })
-    if (r.data.length) await clerk.users.deleteUser(r.data[0].id)
-  } catch { }
-}
-
-async function cleanupUser(u: { username: string; email: string }) {
+async function cleanupUser(u: { username: string; email: string; role: Role }) {
   const existing = await prisma.user.findUnique({ where: { username: u.username } })
+  // FIX K2: looks the account up in Clerk by id, username AND both possible emails (see clerk-seed-users.ts).
+  await removeSeedUserFromClerk(u, existing?.clerkId)
   if (existing) {
-    await cleanupClerkUser(u.email, existing.clerkId)
+    // rows that reference the user and have no cascade (they would block the delete)
+    await prisma.notification.deleteMany({ where: { userId: existing.id } })
+    await prisma.coordinatorUnavailability.deleteMany({ where: { coordinatorId: existing.id } })
     await prisma.user.delete({ where: { id: existing.id } })
-  } else {
-    await cleanupClerkUser(u.email)
   }
 }
 
@@ -74,7 +70,7 @@ async function createUser(u: {
   const clerkUser = await clerk.users.createUser({
     username: u.username,
     password: u.password,
-    emailAddress: [isStaff ? `seed.${u.username}@example.com` : u.email],
+    emailAddress: [clerkEmailForSeedUser(u)],
     publicMetadata: { role: u.role },
     skipPasswordChecks: false,
   })
@@ -198,6 +194,9 @@ const VENDORS = [
 export async function run() {
   console.log("\n🌱  Starting seed…")
 
+  // FIX K3 (second line of defence — cli.ts refuses first): demo accounts with a published password never go live.
+  const refusal = productionReason()
+  if (refusal) throw new Error(`Refusing to run the base seed: ${refusal}`)
   if (!process.env.CLERK_SECRET_KEY && !process.env.SEED_CLERK_STUB) throw new Error("CLERK_SECRET_KEY required")
   if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL required")
 
@@ -211,6 +210,8 @@ export async function run() {
   await prisma.booking.deleteMany()
   await prisma.auditLog.deleteMany()
   await prisma.auditChainState.deleteMany()
+  await prisma.notification.deleteMany()
+  await prisma.coordinatorUnavailability.deleteMany()
   console.log("  🗑  Cleared all transactional data")
 
   // ── Users ─────────────────────────────────────────────────────────

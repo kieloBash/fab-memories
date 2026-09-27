@@ -3,6 +3,7 @@
 import { createInterface } from "node:readline/promises"
 import { collectClerkUsers, deleteClerkUsers } from "./clerk-wipe"
 import { clerkIsStubbed, prisma, type SeedContext, type SeedModule } from "./_shared"
+import { productionReason, WIPE_ORDER } from "./guards"
 import { SEEDS } from "./index"
 
 const HELP = `
@@ -22,7 +23,7 @@ Usage:  npx tsx prisma/seed.ts [options]
 
 Environment:
   DATABASE_URL                 database OWNER connection (the wipe deletes audit rows — not the app_runtime role)
-  CLERK_SECRET_KEY             Clerk instance to seed. --fresh REFUSES a live key (sk_live_…).
+  CLERK_SECRET_KEY             Clerk instance to seed. Seeding and --fresh REFUSE a live key (sk_live_…) and NODE_ENV=production.
   SEED_KEEP_CLERK_EMAILS       comma-separated emails that --fresh must NOT delete from Clerk (e.g. your own login)
   SEED_ADMIN_USERNAME          admin username (default "admin")
 `
@@ -100,29 +101,23 @@ async function resetSeeds(names: string[], all: boolean) {
 // ── --fresh ───────────────────────────────────────────────────────
 
 async function wipeDatabase(keepEmails: string[]) {
-  // children before parents; the audit tables first because they reference users
-  await prisma.$transaction([
-    prisma.auditWriteFailure.deleteMany(),
-    prisma.auditLog.deleteMany(),
-    prisma.auditChainState.deleteMany(),
-    prisma.staffAssignment.deleteMany(),
-    prisma.bookingVendor.deleteMany(),
-    prisma.vendor.deleteMany(),
-    prisma.installment.deleteMany(),
-    prisma.payment.deleteMany(),
-    prisma.booking.deleteMany(),
-    prisma.package.deleteMany(),
-    prisma.user.deleteMany(keepEmails.length ? { where: { OR: [{ email: null }, { email: { notIn: keepEmails } }] } } : undefined),
-  ])
+  // WIPE_ORDER (guards.ts): children before parents, "user" last. One transaction — any failure deletes nothing.
+  const db = prisma as unknown as Record<string, { deleteMany: (args?: unknown) => any }>
+  await prisma.$transaction(
+    WIPE_ORDER.map((model) =>
+      model === "user" && keepEmails.length
+        ? db.user.deleteMany({ where: { OR: [{ email: null }, { email: { notIn: keepEmails } }] } })
+        : db[model].deleteMany(),
+    ),
+  )
 }
 
 async function fresh(a: Parsed, selected: SeedModule[], ctx: SeedContext) {
   const key = process.env.CLERK_SECRET_KEY ?? ""
   const keepEmails = (process.env.SEED_KEEP_CLERK_EMAILS ?? "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean)
 
-  // Guard rails — all checked BEFORE anything is deleted
-  if (!clerkIsStubbed && !a.keepClerk && key.startsWith("sk_live_"))
-    throw new UserError("Refusing to wipe Clerk users: CLERK_SECRET_KEY is a LIVE key (sk_live_…). --fresh only works against a development instance. (Use --keep-clerk to leave Clerk alone.)")
+  // Guard rails — all checked BEFORE anything is deleted. (A live key / production build was already refused in
+  // main(); that now also covers --keep-clerk, which used to be allowed to wipe the database with a live key.)
   if (!clerkIsStubbed && !key) throw new UserError("CLERK_SECRET_KEY is required (the base seed creates the accounts in Clerk).")
   const [priv] = await prisma.$queryRaw<{ can: boolean; role: string }[]>`SELECT has_table_privilege(current_user, '"AuditLog"', 'DELETE') AS can, current_user::text AS role`
   if (!priv.can) throw new UserError(`The database role "${priv.role}" cannot delete audit rows, so it cannot wipe the database. Run the seed with the database OWNER connection in DATABASE_URL (not the restricted app_runtime role).`)
@@ -173,6 +168,11 @@ export async function main(argv: string[]) {
 
     if (a.list) return await list()
     if (a.reset.length || a.resetAll) return await resetSeeds(a.reset, a.resetAll)
+
+    // FIX K3: creating demo data or wiping is refused against a live Clerk key or a production build.
+    // (--list and --reset above stay allowed: they only read, or remove data an add-on seed created.)
+    const refusal = productionReason()
+    if (refusal) throw new UserError(`Refusing to seed: ${refusal}`)
 
     // which seeds?
     let selected: SeedModule[]
