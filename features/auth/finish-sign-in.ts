@@ -13,8 +13,9 @@
  *   4. Allowed → go to the dashboard the server names.
  */
 import { signInErrorMessage, signInErrorUrl, type Portal } from "@/lib/clerk/portal"
-import { useEffect } from "react"
-import { checkPortal } from "@/features/auth/portal-check"
+import { useEffect, useState } from "react"
+import { useAuth, useClerk } from "@clerk/nextjs"
+import { checkPortal, endExpiredSession } from "@/features/auth/portal-check"
 
 type SessionLike = { currentTask?: { key?: string } | null; getToken: () => Promise<string | null> } | null | undefined
 
@@ -58,15 +59,36 @@ export function navigateTo(push: (url: string) => void) {
 /**
  * Shows the refusal carried in `?error=<code>` after the sign-out redirect. Only known codes produce a specific
  * message (lib/clerk/portal.ts); the code is removed from the address bar afterwards.
+ *
+ * SESSION_EXPIRED is special: proxy.ts sends a session older than SESSION_MAX_AGE here while the browser is STILL
+ * signed in. Once Clerk has loaded, the page ends that session on the server (revoke + audit, best-effort) and signs
+ * the browser out, coming back to this same page with the code — that second visit is signed out and only shows the
+ * message, so this cannot loop.
  */
 export function useSignInErrorFromUrl(portal: Portal, setError: (message: string) => void) {
+  const { isLoaded, isSignedIn } = useAuth()
+  const { signOut } = useClerk()
+  const [expiredWhileSignedIn, setExpiredWhileSignedIn] = useState(false)
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const code = params.get("error")
     if (!code) return
     setError(signInErrorMessage(code, portal))
+    if (code === "SESSION_EXPIRED") setExpiredWhileSignedIn(true)
     params.delete("error")
     const rest = params.toString()
     window.history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""))
   }, [portal, setError])
+
+  useEffect(() => {
+    if (!expiredWhileSignedIn || !isLoaded || !isSignedIn) return
+    let cancelled = false
+    void (async () => {
+      await endExpiredSession()
+      if (cancelled) return
+      try { await signOut({ redirectUrl: signInErrorUrl(portal, "SESSION_EXPIRED") }) } catch { /* already signed out */ }
+    })()
+    return () => { cancelled = true }
+  }, [expiredWhileSignedIn, isLoaded, isSignedIn, portal, signOut])
 }

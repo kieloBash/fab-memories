@@ -46,9 +46,10 @@ export type SignInErrorCode =
   | "CHECK_FAILED"
   | "RESET_PASSWORD_REQUIRED"
   | "SESSION_TASK"
+  | "SESSION_EXPIRED"
 
 export const SIGN_IN_ERROR_CODES: readonly SignInErrorCode[] = [
-  "WRONG_PORTAL", "ACCOUNT_DEACTIVATED", "ACCOUNT_NOT_FOUND", "NO_SESSION", "CHECK_FAILED", "RESET_PASSWORD_REQUIRED", "SESSION_TASK",
+  "WRONG_PORTAL", "ACCOUNT_DEACTIVATED", "ACCOUNT_NOT_FOUND", "NO_SESSION", "CHECK_FAILED", "RESET_PASSWORD_REQUIRED", "SESSION_TASK", "SESSION_EXPIRED",
 ]
 
 /** The message a login page shows for a refusal code. `page` = the portal of the login page showing it. */
@@ -64,6 +65,8 @@ export function signInErrorMessage(code: string | null | undefined, page: Portal
       return "Your sign-in didn't finish. Please try again."
     case "RESET_PASSWORD_REQUIRED":
       return "For your security you need to set a new password first. Use \"Forgot password?\" below to choose one."
+    case "SESSION_EXPIRED":
+      return "Your session has expired. Please sign in again."
     case "SESSION_TASK":
       return "Your account needs one more step before you can sign in. Please contact support."
     default:

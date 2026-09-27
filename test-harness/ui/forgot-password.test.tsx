@@ -39,6 +39,7 @@ vi.mock("@clerk/nextjs", () => ({
     return { signIn: signInMock, errors: null, fetchStatus: "idle" }
   },
   useClerk: () => ({ signOut: signOutMock }),
+  useAuth: () => ({ isLoaded: true, isSignedIn: false }),
 }))
 
 beforeEach(() => {

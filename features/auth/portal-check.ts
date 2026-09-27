@@ -32,3 +32,16 @@ export async function checkPortal(portal: "client" | "staff", getToken: () => Pr
     return { ok: false, code, message: signInErrorMessage(code, portal) }
   }
 }
+
+
+/**
+ * Ends a session that proxy.ts found older than SESSION_MAX_AGE: revoked at Clerk + LOGOUT audit entry
+ * (POST /api/auth/session-expired). Best-effort — the login page signs the browser out whatever happens here.
+ */
+export async function endExpiredSession(): Promise<void> {
+  try {
+    await api.post("/auth/session-expired")
+  } catch {
+    /* not expired after all, already ended, or offline — the browser sign-out still happens */
+  }
+}

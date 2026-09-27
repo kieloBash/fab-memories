@@ -20,9 +20,11 @@ const signInMock: any = {
     return { error: null }
   }),
 }
+const authState = { isLoaded: true, isSignedIn: false }
 vi.mock("@clerk/nextjs", () => ({
   useSignIn: () => ({ signIn: signInMock, errors: null, fetchStatus: "idle" }),
   useClerk: () => ({ signOut: signOutMock }),
+  useAuth: () => authState,
 }))
 
 const wrong = (error: string, portal: string) =>
@@ -39,7 +41,7 @@ async function submitStaff() {
   await user.click(screen.getByRole("button", { name: /sign in/i }))
 }
 
-beforeEach(() => { vi.clearAllMocks(); state.currentTask = null; window.history.replaceState(null, "", "/") })
+beforeEach(() => { vi.clearAllMocks(); state.currentTask = null; authState.isSignedIn = false; window.history.replaceState(null, "", "/") })
 
 describe.each([
   { name: "client sign-in (/sign-in)", portal: "client", submit: submitClient, home: "/portal", staffHint: /staff login/i, page: "/sign-in", Page: SignInPage },
@@ -120,5 +122,31 @@ describe.each([
     expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=RESET_PASSWORD_REQUIRED` })
     expect(mockApi.post).not.toHaveBeenCalled()
     expect(routerMock.push).not.toHaveBeenCalled()
+  })
+  it("?error=SESSION_EXPIRED while STILL signed in → ends the session on the server, then signs out back to this page", async () => {
+    authState.isSignedIn = true
+    mockApi.post.mockResolvedValue({ data: { ok: true, revoked: true } })
+    window.history.pushState(null, "", `${page}?error=SESSION_EXPIRED`)
+    render(<Page />)
+    expect(await screen.findByText(/session has expired/i)).toBeInTheDocument()
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=SESSION_EXPIRED` }))
+    expect(mockApi.post).toHaveBeenCalledWith("/auth/session-expired")
+    expect(window.location.search).toBe("")
+  })
+
+  it("?error=SESSION_EXPIRED after the sign-out (signed out) → message only, no second sign-out (no loop)", async () => {
+    window.history.pushState(null, "", `${page}?error=SESSION_EXPIRED`)
+    render(<Page />)
+    expect(await screen.findByText(/session has expired/i)).toBeInTheDocument()
+    expect(signOutMock).not.toHaveBeenCalled()
+    expect(mockApi.post).not.toHaveBeenCalled()
+  })
+
+  it("the server call failing does not stop the browser sign-out", async () => {
+    authState.isSignedIn = true
+    mockApi.post.mockRejectedValue(new AxiosError("Network Error"))
+    window.history.pushState(null, "", `${page}?error=SESSION_EXPIRED`)
+    render(<Page />)
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledWith({ redirectUrl: `${page}?error=SESSION_EXPIRED` }))
   })
 })
