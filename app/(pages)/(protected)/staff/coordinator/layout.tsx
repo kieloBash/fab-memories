@@ -1,6 +1,6 @@
 // app/(pages)/(protected)/staff/coordinator/layout.tsx
 
-import { getCurrentRole } from '@/lib/clerk/auth';
+import { getPageSession } from '@/lib/clerk/page-session';
 import { redirect } from 'next/navigation';
 
 /**
@@ -15,7 +15,7 @@ export default async function CoordinatorLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const role = await getCurrentRole();
+  const { role } = await getPageSession();
   if (!role || !['ADMIN', 'COORDINATOR'].includes(role)) {
     redirect('/unauthorized');
   }

@@ -1,6 +1,6 @@
 // app/(pages)/(protected)/staff/admin/layout.tsx
 
-import { getCurrentRole } from '@/lib/clerk/auth';
+import { getPageSession } from '@/lib/clerk/page-session';
 import { redirect } from 'next/navigation';
 
 /**
@@ -18,7 +18,7 @@ export default async function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const role = await getCurrentRole();
+  const { role } = await getPageSession();
   if (role !== 'ADMIN') {
     redirect('/unauthorized');
   }

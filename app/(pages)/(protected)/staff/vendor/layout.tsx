@@ -1,6 +1,6 @@
 // app/(pages)/(protected)/staff/vendor/layout.tsx
 
-import { getCurrentRole } from '@/lib/clerk/auth';
+import { getPageSession } from '@/lib/clerk/page-session';
 import { redirect } from 'next/navigation';
 
 /**
@@ -15,7 +15,7 @@ export default async function VendorLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const role = await getCurrentRole();
+  const { role } = await getPageSession();
   if (!role || !['ADMIN', 'VENDOR'].includes(role)) {
     redirect('/unauthorized');
   }

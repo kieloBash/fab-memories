@@ -1,19 +1,19 @@
-// app/(pages)/(public)/staff-login/[[...sign-in]]/page.tsx
+// app/(pages)/(public)/sign-in/[[...sign-in]]/page.tsx
 "use client"
 
 /**
- * Custom staff sign-in flow — username + password only, no sign-up path.
- * Built on Clerk Core 3's useSignIn() hook (same API as the client
- * /sign-in page — see that file for the full Core 2 → Core 3 mapping).
+ * CLIENT sign-in — email address (or username) + password.
  *
- * Note on the `emailAddress` field name: Clerk's Core 3 `signIn.password()`
- * method takes its identifier under a parameter literally named
- * `emailAddress` in the current docs, even though this app signs staff in
- * by username. In testing, Clerk resolves whatever identifier type is
- * passed (username, email, or phone) through this same field — but if
- * your Clerk instance rejects a username here, check the Username
- * sign-in toggle under User & Authentication in the Clerk Dashboard and
- * confirm with Clerk's current docs for username-specific behavior.
+ * This page is for CLIENT accounts only. Staff (ADMIN / COORDINATOR / VENDOR) sign in at /staff-login.
+ * Both pages share the same finishing step (features/auth/finish-sign-in.ts): after Clerk accepts the password,
+ * the server is asked whether this account belongs on THIS page (POST /api/auth/portal-check { portal: "client" }).
+ * A staff account used here is refused, its session revoked, and the browser returns here with ?error=WRONG_PORTAL.
+ *
+ * FIX: this file had been overwritten with a copy of the staff-login page, so it asked the server about the
+ * "staff" portal — every client was refused and bounced to /staff-login, while staff could sign in here.
+ *
+ * Clerk Core 3 note: signIn.password() takes the identifier under `emailAddress`; Clerk resolves an email
+ * address or a username through that field (same as /staff-login — see the note in that file).
  */
 
 import { useState } from "react"
@@ -25,19 +25,19 @@ import { AuthShell } from "@/features/auth/components/auth-shell"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { AlertCircle, UserCog, Lock, Eye, EyeOff, ArrowRight } from "lucide-react"
+import { AlertCircle, Mail, Lock, Eye, EyeOff, ArrowRight } from "lucide-react"
 
-export default function StaffLoginPage() {
+export default function SignInPage() {
   const { signIn, errors, fetchStatus } = useSignIn()
   const { signOut } = useClerk()
   const router = useRouter()
 
-  const [username, setUsername] = useState("")
+  const [identifier, setIdentifier] = useState("")
   const [password, setPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   // A refused sign-in comes back to this page as ?error=<code> — show why.
-  useSignInErrorFromUrl("staff", setFormError)
+  useSignInErrorFromUrl("client", setFormError)
 
   const isSubmitting = fetchStatus === "fetching"
 
@@ -46,22 +46,20 @@ export default function StaffLoginPage() {
     setFormError(null)
 
     const { error } = await signIn.password({
-      emailAddress: username,
+      emailAddress: identifier.trim(),
       password,
     })
 
     if (error) {
-      setFormError(error.message ?? "Couldn't sign in. Check your username and password.")
+      setFormError(error.message ?? "Couldn't sign in. Check your email address and password.")
       return
     }
 
     if (signIn.status === "complete") {
       const { error: finalizeError } = await signIn.finalize({
         navigate: async ({ session, decorateUrl }) => {
-          // Pending tasks, the server-side portal check, and refusals (sign out → back HERE with ?error=<code>,
-          // not to "/") are handled in one place for every login page — see features/auth/finish-sign-in.ts.
           await finishSignIn({
-            portal: "staff",
+            portal: "client",
             session: session as any,
             decorateUrl,
             navigate: navigateTo(router.push),
@@ -77,12 +75,12 @@ export default function StaffLoginPage() {
     }
 
     if (signIn.status === "needs_second_factor") {
-      setFormError("Two-factor verification is required. Please contact your administrator.")
+      setFormError("Two-factor verification is required for this account. Please contact support.")
       return
     }
 
     if (signIn.status === "needs_client_trust") {
-      setFormError("We don't recognize this device. Please contact your administrator to verify your sign-in.")
+      setFormError("We don't recognize this device. Please contact support to verify your sign-in.")
       return
     }
 
@@ -91,10 +89,10 @@ export default function StaffLoginPage() {
 
   return (
     <AuthShell
-      variant="staff"
-      eyebrow="Staff access"
+      variant="client"
+      eyebrow="Welcome back"
       title="Sign in to your account"
-      subtitle="For Fab Memories Events administrators, coordinators, and vendors"
+      subtitle="Track your bookings, payments and event details"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {formError && (
@@ -105,31 +103,28 @@ export default function StaffLoginPage() {
         )}
 
         <div className="space-y-1.5">
-          <Label htmlFor="username">Username</Label>
+          <Label htmlFor="identifier">Email address/username</Label>
           <div className="relative">
-            <UserCog size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden="true" />
+            <Mail size={14} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-muted pointer-events-none" aria-hidden="true" />
             <Input
-              id="username"
+              id="identifier"
               type="text"
               autoComplete="username"
               autoCapitalize="off"
               autoCorrect="off"
               required
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="e.g. admin, coordinator"
+              value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)}
+              placeholder="you@example.com"
               className="pl-10"
             />
           </div>
-          {/* {errors?.fields?.emailAddress && (
-            <p className="text-[11px] text-red-600">{errors.fields.emailAddress.message}</p>
-          )} */}
         </div>
 
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
             <Label htmlFor="password">Password</Label>
-            <Link href="/forgot-password?portal=staff" className="text-[12px] font-medium text-primary hover:underline">
+            <Link href="/forgot-password" className="text-[12px] font-medium text-primary hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -166,13 +161,16 @@ export default function StaffLoginPage() {
       </form>
 
       <p className="mt-6 text-center text-[12px] text-text-muted">
-        Don't have staff access? Contact your administrator to have an account created.
+        New to Fab Memories?{" "}
+        <Link href="/sign-up" className="font-medium text-primary hover:underline">
+          Create an account
+        </Link>
       </p>
 
       <p className="mt-3 text-center text-[12px] text-text-muted">
-        Looking to book an event?{" "}
-        <Link href="/sign-in" className="font-medium text-primary hover:underline">
-          Client sign in
+        Fab Memories staff or vendor?{" "}
+        <Link href="/staff-login" className="font-medium text-primary hover:underline">
+          Staff sign-in
         </Link>
       </p>
     </AuthShell>

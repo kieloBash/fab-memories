@@ -5,11 +5,10 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useClerk } from '@clerk/nextjs';
 import { LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 interface LogoutButtonProps {
-    /** Where to send the user after sign-out. Defaults to the landing page. */
+    /** Where to send the user after sign-out. Defaults to the landing page; the sidebars pass their own login page. */
     redirectUrl?: string;
     className?: string;
     children?: React.ReactNode;
@@ -36,15 +35,14 @@ export function LogoutButton({
     variant = 'full',
 }: LogoutButtonProps) {
     const { signOut } = useClerk();
-    const router = useRouter();
     const [isSigningOut, setIsSigningOut] = useState(false);
 
     async function handleLogout() {
         setIsSigningOut(true);
         try {
-            await signOut();
-            router.push(redirectUrl);
-            router.refresh();
+            // Let Clerk navigate once the session is cleared — pushing the route ourselves raced the sign-out and
+            // could land on a protected page with a stale session.
+            await signOut({ redirectUrl });
         } catch (err) {
             console.error('Sign-out failed:', err);
             setIsSigningOut(false);

@@ -1,7 +1,8 @@
 // app/(pages)/(protected)/staff/layout.tsx
 
 import SidebarShell from "@/features/layouts/components/SidebarShell";
-import { getCurrentDbUser, getCurrentRole } from "@/lib/clerk/auth";
+import { dashboardFor, LOGIN_PATH } from "@/lib/clerk/portal";
+import { getPageSession } from "@/lib/clerk/page-session";
 import { redirect } from "next/navigation";
 
 /**
@@ -10,6 +11,10 @@ import { redirect } from "next/navigation";
  * previously activate when on /staff/admin/bookings.
  *
  * User accounts now uses "UserCog" icon (distinct from "Users").
+ *
+ * FIX (login redirects): a user with no role in the session token used to be sent to /portal, which sent them
+ * straight back here — a redirect loop. The role now falls back to the database (lib/clerk/page-session.ts);
+ * signed-out visitors go to /staff-login; a truly unknown role goes to /unauthorized.
  */
 const adminNavItems = [
   { href: "/staff/admin", label: "Dashboard", icon: "LayoutDashboard", exact: true },
@@ -61,12 +66,11 @@ export default async function StaffLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const role = await getCurrentRole();
-  const user = await getCurrentDbUser();
+  const { signedIn, role, dbUser: user } = await getPageSession();
 
-  if (!role || role === "CLIENT") {
-    redirect("/portal");
-  }
+  if (!signedIn) redirect(LOGIN_PATH.staff);
+  if (!role) redirect("/unauthorized");
+  if (role === "CLIENT") redirect(dashboardFor(role));
 
   const navItems = getNavItems(role);
   const displayName = user?.fullName ?? user?.username ?? "Staff";
@@ -78,6 +82,7 @@ export default async function StaffLayout({
       userName={displayName}
       userRole={roleLabel}
       notificationCount={0}
+      signOutRedirectUrl={LOGIN_PATH.staff}
     >
       {children}
     </SidebarShell>

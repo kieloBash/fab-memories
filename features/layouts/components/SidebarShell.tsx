@@ -27,6 +27,8 @@ interface SidebarShellProps {
   userName: string;
   userRole: string;
   notificationCount?: number;
+  /** Login page to land on after signing out — /staff-login for staff, /sign-in for clients. */
+  signOutRedirectUrl?: string;
 }
 
 export default function SidebarShell({
@@ -35,6 +37,7 @@ export default function SidebarShell({
   userName,
   userRole,
   notificationCount = 0,
+  signOutRedirectUrl = "/",
 }: SidebarShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -115,7 +118,7 @@ export default function SidebarShell({
             size="sm"
             showRole={!collapsed}
           />
-          <LogoutButton variant={collapsed ? "icon" : "full"} />
+          <LogoutButton variant={collapsed ? "icon" : "full"} redirectUrl={signOutRedirectUrl} />
         </div>
 
         {/* Collapse toggle */}
@@ -197,7 +200,7 @@ export default function SidebarShell({
               {/* Drawer footer — avatar + logout */}
               <div className="border-t border-border p-3 shrink-0 flex items-center justify-between gap-2">
                 <UserAvatar name={userName} role={userRole} size="sm" showRole />
-                <LogoutButton />
+                <LogoutButton redirectUrl={signOutRedirectUrl} />
               </div>
             </motion.aside>
           </>

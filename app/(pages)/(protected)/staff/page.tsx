@@ -1,34 +1,17 @@
-// app/(pages)/(protected)/(staff)/staff/page.tsx
+// app/(pages)/(protected)/staff/page.tsx
 
-'use client';
+import { redirect } from "next/navigation";
+import { dashboardFor } from "@/lib/clerk/portal";
+import { getPageSession } from "@/lib/clerk/page-session";
 
-import { useEffect } from 'react';
-import { useAuth } from '@clerk/nextjs';
-import { useRouter } from 'next/navigation';
-import { Sparkles } from 'lucide-react';
-
-export default function StaffIndexPage() {
-  const { isLoaded, sessionClaims } = useAuth();
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!isLoaded) return;
-    const role = (sessionClaims as any)?.metadata?.role;
-
-    if (role === 'ADMIN') router.replace('/staff/admin');
-    else if (role === 'COORDINATOR') router.replace('/staff/coordinator');
-    else if (role === 'VENDOR') router.replace('/staff/vendor');
-    else router.replace('/portal');
-  }, [isLoaded, sessionClaims, router]);
-
-  return (
-    <div className="flex min-h-[50vh] flex-col items-center justify-center gap-4">
-      <div className="w-10 h-10 rounded-xl bg-primary-soft flex items-center justify-center">
-        <Sparkles size={20} className="text-primary animate-pulse" aria-hidden="true" />
-      </div>
-      <p className="text-[13px] text-text-muted tracking-tight">
-        Loading your dashboard...
-      </p>
-    </div>
-  );
+/**
+ * /staff has no content of its own — it forwards to the signed-in role's dashboard.
+ *
+ * FIX: this used to be a client component that waited for Clerk to load and sent any unknown role to /portal
+ * (which bounced back here). It now redirects on the server with the same resolved role as staff/layout.tsx,
+ * which has already turned away signed-out, unknown-role and CLIENT visitors.
+ */
+export default async function StaffIndexPage() {
+  const { role } = await getPageSession();
+  redirect(role ? dashboardFor(role) : "/unauthorized");
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ShieldAlert, ArrowLeft } from "lucide-react"
-import { getCurrentDbUser, getCurrentRole } from "@/lib/clerk/auth"
+import { getPageSession } from "@/lib/clerk/page-session"
 import { getDefaultRedirect } from "@/lib/rbac"
 
 /**
@@ -13,8 +13,7 @@ import { getDefaultRedirect } from "@/lib/rbac"
  * own sign-in redirect flow.
  */
 export default async function UnauthorizedPage() {
-  const role = await getCurrentRole()
-  const user = await getCurrentDbUser()
+  const { role, dbUser: user } = await getPageSession()
 
   const homeHref = role ? getDefaultRedirect(role) : "/"
   const displayName = user?.fullName ?? "there"
