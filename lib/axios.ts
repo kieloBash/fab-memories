@@ -1,4 +1,9 @@
 // lib/axios.ts
+//
+// CHANGE: the SESSION_EXPIRED redirect is gone (custom session expiry removed — Clerk manages session lifetime).
+// When Clerk ends a session (maximum lifetime / inactivity timeout / revoked), proxy.ts answers API calls with
+// 401 { code: "NO_SESSION" }. Instead of every open screen showing error toasts, the browser is sent to its
+// login page once, with ?error=SESSION_ENDED so the page explains why.
 
 import axios from 'axios';
 import { LOGIN_PATH, signInErrorUrl } from '@/lib/clerk/portal';
@@ -17,36 +22,40 @@ export const api = axios.create({
 });
 
 /**
- * SESSION_MAX_AGE: proxy.ts answers API calls from an expired session with 401 { code: "SESSION_EXPIRED" }.
- * Instead of every open screen showing error toasts, send the browser to its login page (which ends the session).
- * Staff screens (/staff/...) go to /staff-login, everything else to /sign-in. Returns true when it redirected.
+ * Pages that must NOT be redirected on a 401: the sign-in flows themselves call /api/auth/portal-check before the
+ * session is fully established, and handle NO_SESSION on their own (features/auth/finish-sign-in.ts).
  */
-let redirectingForExpiredSession = false
+const SIGN_IN_FLOW_PATHS = [...Object.values(LOGIN_PATH), '/sign-up', '/forgot-password'];
 
-export function redirectIfSessionExpired(
+let redirectingForEndedSession = false;
+
+/**
+ * Clerk ended the session → send the browser to its login page (staff screens → /staff-login, everything else →
+ * /sign-in). Returns true when it redirected. Only once per page load, so parallel failing requests don't race.
+ */
+export function redirectIfSignedOut(
     error: unknown,
     location: Pick<Location, 'pathname' | 'assign'> | undefined = typeof window === 'undefined' ? undefined : window.location,
 ): boolean {
-    if (!location || redirectingForExpiredSession) return false;
+    if (!location || redirectingForEndedSession) return false;
     if (!axios.isAxiosError(error)) return false;
-    if (error.response?.status !== 401 || error.response?.data?.code !== 'SESSION_EXPIRED') return false;
-    // Already on a login page — that page handles the expiry itself.
-    if (Object.values(LOGIN_PATH).some((p) => location.pathname.startsWith(p))) return false;
+    if (error.response?.status !== 401 || error.response?.data?.code !== 'NO_SESSION') return false;
+    if (SIGN_IN_FLOW_PATHS.some((p) => location.pathname.startsWith(p))) return false;
 
-    redirectingForExpiredSession = true;
-    location.assign(signInErrorUrl(location.pathname.startsWith('/staff') ? 'staff' : 'client', 'SESSION_EXPIRED'));
+    redirectingForEndedSession = true;
+    location.assign(signInErrorUrl(location.pathname.startsWith('/staff') ? 'staff' : 'client', 'SESSION_ENDED'));
     return true;
 }
 
 /** Test helper — resets the one-redirect guard. */
-export function __resetSessionExpiredGuard() {
-    redirectingForExpiredSession = false;
+export function __resetSignedOutGuard() {
+    redirectingForEndedSession = false;
 }
 
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        redirectIfSessionExpired(error);
+        redirectIfSignedOut(error);
         return Promise.reject(error);
     },
 );
