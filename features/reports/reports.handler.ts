@@ -7,6 +7,7 @@
 // auth, validation, audit logging and error handling. Server-only.
 
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
+import { isAccountBlocked } from "@/lib/security/active-check"
 import { NextResponse } from "next/server"
 import { isReportType, type ReportType } from "./reports.constants"
 import { manilaYmd } from "./reports.dates"
@@ -40,7 +41,7 @@ async function authorise(roles: ("ADMIN" | "COORDINATOR")[]): Promise<Authorised
   if (!actor) {
     return { ok: false, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
-  if (!actor.isActive) {
+  if (isAccountBlocked(actor)) {
     return { ok: false, response: NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
   }
   return { ok: true, actor }

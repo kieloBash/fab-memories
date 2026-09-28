@@ -15,9 +15,14 @@
 //
 // This enforces the login-page policy (staff only at /staff-login, clients only at /sign-in). It is not the
 // authorization boundary — every route still checks the role itself.
+//
+// CHANGE: the deactivated-account check goes through lib/security/active-check.ts. With ENFORCE_ACCOUNT_ACTIVE=false
+// (development only — ignored in production) a deactivated account is let through, and that bypass is itself
+// written to the audit trail so it is never silent.
 
 import { logAction } from "@/lib/audit/log"
 import { getCurrentClerkId, getCurrentDbUser, revokeCurrentSession } from "@/lib/clerk/auth"
+import { isAccountBlocked, isActiveCheckEnforced } from "@/lib/security/active-check"
 import { ensureDbUser } from "@/lib/sync-user"
 import { LOGIN_PATH, dashboardFor, portalFor, wrongPortalMessage } from "@/lib/clerk/portal"
 import { NextResponse } from "next/server"
@@ -52,8 +57,8 @@ export async function POST(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: "portal must be 'client' or 'staff'" }, { status: 422 })
   const attempted = parsed.data.portal
 
-  // A deactivated account may not sign in anywhere.
-  if (!actor.isActive) {
+  // A deactivated account may not sign in anywhere (unless the check is bypassed in development).
+  if (isAccountBlocked(actor)) {
     const revoked = await revokeCurrentSession()
     await logAction({
       userId: actor.id, action: "LOGIN", module: "AUTH", status: "FAILURE",
@@ -61,6 +66,14 @@ export async function POST(req: Request) {
       metadata: { event: "DEACTIVATED_SIGN_IN", attemptedPortal: attempted, sessionRevoked: revoked },
     })
     return NextResponse.json({ error: "This account has been deactivated. Please contact an administrator.", code: "ACCOUNT_DEACTIVATED" }, { status: 403 })
+  }
+  if (!actor.isActive && !isActiveCheckEnforced()) {
+    // Bypass in effect — record it so the audit trail shows why a deactivated account got in.
+    await logAction({
+      userId: actor.id, action: "LOGIN", module: "AUTH", status: "SUCCESS",
+      description: `${actor.role} account is deactivated — sign-in allowed because the active-status check is disabled (development)`,
+      metadata: { event: "DEACTIVATED_SIGN_IN_BYPASSED", attemptedPortal: attempted, flag: "ENFORCE_ACCOUNT_ACTIVE=false" },
+    })
   }
 
   const actual = portalFor(actor.role)

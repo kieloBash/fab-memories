@@ -3,6 +3,7 @@
 import { getIntegrityReport } from "@/features/integrity/integrity.query"
 import { logReportView } from "@/features/reports/reports.logging"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
+import { isAccountBlocked } from "@/lib/security/active-check"
 import { NextResponse } from "next/server"
 
 /** GET /api/integrity — live system-integrity checks. ADMIN only. */
@@ -11,7 +12,7 @@ export async function GET() {
   catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const actor = await getCurrentDbUser()
-  if (!actor || !actor.isActive) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || isAccountBlocked(actor)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const report = await getIntegrityReport()
 

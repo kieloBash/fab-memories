@@ -3,6 +3,7 @@
 import { logReportView } from "@/features/reports/reports.logging"
 import { getRiskIndicators } from "@/features/reports/reports.risk"
 import { getCurrentDbUser, requireRole } from "@/lib/clerk/auth"
+import { isAccountBlocked } from "@/lib/security/active-check"
 import { NextResponse } from "next/server"
 
 /**
@@ -16,7 +17,7 @@ export async function GET() {
   catch { return NextResponse.json({ error: "Forbidden" }, { status: 403 }) }
 
   const actor = await getCurrentDbUser()
-  if (!actor || !actor.isActive) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+  if (!actor || isAccountBlocked(actor)) return NextResponse.json({ error: "Forbidden" }, { status: 403 })
 
   const risks = await getRiskIndicators({ basePath: "/staff/admin", forceChainCheck: true })
 
