@@ -1,0 +1,7 @@
+// tsconfig.e2e.json — type-checks the Playwright suite on its own (npm run typecheck:e2e). The main tsconfig excludes e2e/ so the Next.js build never compiles test files.
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "types": ["node"] },
+  "include": ["playwright.config.ts", "e2e/**/*.ts"],
+  "exclude": ["e2e/scripts/cleanup-e2e-data.ts"]
+}
