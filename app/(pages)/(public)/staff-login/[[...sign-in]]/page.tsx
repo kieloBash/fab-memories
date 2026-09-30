@@ -94,7 +94,7 @@ export default function StaffLoginPage() {
       variant="staff"
       eyebrow="Staff access"
       title="Sign in to your account"
-      subtitle="For Fab Memories Events administrators, coordinators, and vendors"
+      subtitle="For Fab Memories Events administrators and coordinators"
     >
       <form onSubmit={handleSubmit} className="space-y-4">
         {formError && (

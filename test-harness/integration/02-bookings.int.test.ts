@@ -27,7 +27,9 @@ describe.sequential("Bookings — client request lifecycle", () => {
   let id = ""
   const date = uniqueEventDate()
 
-  step("CLIENT creates a provincial request → price is the package's PROVINCIAL price", async () => {
+  // Provincial pricing is a limitation in this version (PROVINCIAL_PRICING_ENABLED = false):
+  // isProvincial from the client is ignored and the STANDARD price is used.
+  step("CLIENT sends isProvincial → ignored, price is the package's STANDARD price", async () => {
     actAs("client_ben")
     const r = await call(bookingsPOST, {
       body: {
@@ -36,8 +38,8 @@ describe.sequential("Bookings — client request lifecycle", () => {
       },
     })
     expectStatus(r, 201)
-    expect(Number(r.json.agreedPrice)).toBe(92_000)
-    expect(r.json).toMatchObject({ status: "PENDING", isProvincial: true, packageCustomizations: ["Extra LED wall"] })
+    expect(Number(r.json.agreedPrice)).toBe(80_000)
+    expect(r.json).toMatchObject({ status: "PENDING", isProvincial: false, packageCustomizations: ["Extra LED wall"] })
     id = r.json.id
   })
 

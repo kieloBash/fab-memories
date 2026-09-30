@@ -29,11 +29,27 @@ test.describe.serial("Module 2 — event booking and scheduling", () => {
     await expect(client.page.getByText(pending.venue).filter({ visible: true }).first()).toBeVisible()
   })
 
-  // test("TC-FR09-02 Required fields are validated", async () => {
-  //   const r = await client.api.post("/api/bookings", { packageId, eventType: "WEDDING", eventDate: await freeDate(client), guestCount: 50 })
-  //   expect(r.status).toBe(422)
-  //   expect(String(r.json?.error ?? "")).toMatch(/venue|required/i)
-  // })
+  test("TC-FR09-02 Required fields are validated", async () => {
+    const eventDate = await freeDate(client)
+    const base = { packageId, eventType: "WEDDING", eventDate, guestCount: 50, clientPhone: "09170000000", vendorCategories: [], isProvincial: false }
+
+    // Venue missing entirely → refused (Zod type check).
+    const missing = await client.api.post("/api/bookings", base)
+    expect(missing.status).toBe(422)
+
+    // Venue left blank → refused with the form's own message.
+    const blank = await client.api.post("/api/bookings", { ...base, venue: "" })
+    expect(blank.status).toBe(422)
+    expect(String(blank.json?.error)).toMatch(/venue is required/i)
+
+    // Out-of-scope event types (Corporate, Birthday, Other) cannot be booked.
+    const corporate = await client.api.post("/api/bookings", { ...base, eventType: "CORPORATE", venue: tag("Office") })
+    expect(corporate.status).toBe(422)
+    expect(String(corporate.json?.error)).toMatch(/wedding and debut/i)
+
+    // Nothing was saved for that date.
+    expect((await client.api.get("/api/bookings/availability", { date: eventDate })).json.available).toBe(true)
+  })
 
   test("TC-FR04-02 Client sees only own records", async () => {
     expect((await client2.api.get(`/api/bookings/${pending.id}`)).status).toBe(403)
@@ -43,18 +59,18 @@ test.describe.serial("Module 2 — event booking and scheduling", () => {
     expect((await client2.api.get("/api/payments", { bookingId: pending.id })).status).toBe(403)
   })
 
-  // test("TC-FR12-01 Staff are notified of a new booking", async () => {
-  //   // Part 1 — the request is visible to staff as PENDING.
-  //   const list = await admin.api.get("/api/bookings", { status: "PENDING" })
-  //   expect(list.status).toBe(200)
-  //   expect((list.json as any[]).map((b) => b.id)).toContain(pending.id)
-  //   // Part 2 — an in-app notification points to it (FR-12 "shall notify").
-  //   const n = await admin.api.get("/api/notifications")
-  //   expect.soft(
-  //     (n.json?.items ?? []).some((x: any) => String(x.link ?? "").includes(pending.id)),
-  //     "no in-app notification for the new booking — FR-12 notification part not met",
-  //   ).toBe(true)
-  // })
+  test("TC-FR12-01 Staff are notified of a new booking", async () => {
+    // Part 1 — the request is visible to staff as PENDING.
+    const list = await admin.api.get("/api/bookings", { status: "PENDING" })
+    expect(list.status).toBe(200)
+    expect((list.json as any[]).map((b) => b.id)).toContain(pending.id)
+    // Part 2 — an in-app notification points to it (FR-12 "shall notify").
+    const n = await admin.api.get("/api/notifications")
+    expect.soft(
+      (n.json?.items ?? []).some((x: any) => String(x.link ?? "").includes(pending.id)),
+      "no in-app notification for the new booking — FR-12 notification part not met",
+    ).toBe(true)
+  })
 
   test("TC-FR12-03 Confirmation blocked without a verified deposit", async () => {
     const r = await admin.api.patch(`/api/bookings/${pending.id}`, { status: "CONFIRMED" })
@@ -92,14 +108,14 @@ test.describe.serial("Module 2 — event booking and scheduling", () => {
     expect(again.json?.code).toBe("DATE_TAKEN")
   })
 
-  // test("TC-FR11-01 Availability is shown during booking", async () => {
-  //   const taken = await client.api.get("/api/bookings/availability", { date: confirmed.eventDate.slice(0, 10) })
-  //   const free = await client.api.get("/api/bookings/availability", { date: await freeDate(client) })
-  //   expect(taken.json.available).toBe(false)
-  //   expect(free.json.available).toBe(true)
-  //   await client.page.goto("/portal/bookings/new")
-  //   await expect(client.page.locator("main")).toBeVisible()
-  // })
+  test("TC-FR11-01 Availability is shown during booking", async () => {
+    const taken = await client.api.get("/api/bookings/availability", { date: confirmed.eventDate.slice(0, 10) })
+    const free = await client.api.get("/api/bookings/availability", { date: await freeDate(client) })
+    expect(taken.json.available).toBe(false)
+    expect(free.json.available).toBe(true)
+    await client.page.goto("/portal/bookings/new")
+    await expect(client.page.locator("main")).toBeVisible()
+  })
 
   test("TC-FR13-01 Client sees real-time status and history", async () => {
     const h = await client.api.get(`/api/bookings/${confirmed.id}/history`)
@@ -133,11 +149,11 @@ test.describe.serial("Module 2 — event booking and scheduling", () => {
     expect((n.json?.items ?? []).some((x: any) => x.type === "BOOKING_CANCELLED" && String(x.link ?? "").includes(confirmed.id))).toBe(true)
   })
 
-  // test("TC-FR16-01 Calendar shows events by date and status", async () => {
-  //   const [y, m] = pending.eventDate.slice(0, 10).split("-").map(Number)
-  //   const r = await coordinator.api.get("/api/staff/calendar", { year: y, month: m - 1 })
-  //   expect(r.status).toBe(200)
-  //   await coordinator.page.goto("/staff/coordinator/calendar")
-  //   await expect(coordinator.page.locator("main")).toBeVisible()
-  // })
+  test("TC-FR16-01 Calendar shows events by date and status", async () => {
+    const [y, m] = pending.eventDate.slice(0, 10).split("-").map(Number)
+    const r = await coordinator.api.get("/api/staff/calendar", { year: y, month: m - 1 })
+    expect(r.status).toBe(200)
+    await coordinator.page.goto("/staff/coordinator/calendar")
+    await expect(coordinator.page.locator("main")).toBeVisible()
+  })
 })

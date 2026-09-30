@@ -25,21 +25,22 @@ import type { VendorCategory } from "@/features/vendors"
 import { VENDOR_CATEGORY_ICONS, VENDOR_CATEGORY_LABELS } from "@/features/vendors"
 import { SPRING } from "@/lib/framer/framer-utils"
 import { cn } from "@/lib/utils"
+import { isActiveEventType, PROVINCIAL_PRICING_ENABLED } from "@/features/bookings"
 
-const EVENT_TYPES: { value: EventType; label: string; emoji: string }[] = [
-  { value: "WEDDING",   label: "Wedding",         emoji: "💍" },
-  { value: "DEBUT",     label: "Debut",           emoji: "🌸" },
+const EVENT_TYPES: { value: EventType | any; label: string; emoji: string }[] = [
+  { value: "WEDDING", label: "Wedding", emoji: "💍" },
+  { value: "DEBUT", label: "Debut", emoji: "🌸" },
   { value: "CORPORATE", label: "Corporate Event", emoji: "🏢" },
-  { value: "BIRTHDAY",  label: "Birthday",        emoji: "🎂" },
-  { value: "OTHER",     label: "Other",           emoji: "✨" },
-]
+  { value: "BIRTHDAY", label: "Birthday", emoji: "🎂" },
+  { value: "OTHER", label: "Other", emoji: "✨" },
+].filter((t) => isActiveEventType(t.value))
 
 // Short labels for the step indicator so it never overflows on
 // narrow phones — the full label is still used as a tooltip/title.
 const STEPS = [
-  { full: "Event details",     short: "Details" },
-  { full: "Choose a package",  short: "Package" },
-  { full: "Review",            short: "Review" },
+  { full: "Event details", short: "Details" },
+  { full: "Choose a package", short: "Package" },
+  { full: "Review", short: "Review" },
 ] as const
 type Step = 0 | 1 | 2
 
@@ -47,20 +48,20 @@ export default function NewBookingPage() {
   const router = useRouter()
   const { mutate, isPending } = useCreateBooking()
 
-  const [step, setStep]           = useState<Step>(0)
+  const [step, setStep] = useState<Step>(0)
   const [eventType, setEventType] = useState<EventType>("WEDDING")
   const [eventDate, setEventDate] = useState("")
-  const [venue, setVenue]         = useState<VenuePickerValue>({ venue: "" })
+  const [venue, setVenue] = useState<VenuePickerValue>({ venue: "" })
   const [guestCount, setGuestCount] = useState("")
   const [clientPhone, setClientPhone] = useState("")
-  const [notes, setNotes]         = useState("")
+  const [notes, setNotes] = useState("")
   const [customizations, setCustomizations] = useState<string[]>([])
   const [newCustomization, setNewCustomization] = useState("")
   const [vendorCategories, setVendorCategories] = useState<VendorCategory[]>([])
-  const [selectedPackage, setSelectedPackage]   = useState<Package | null>(null)
+  const [selectedPackage, setSelectedPackage] = useState<Package | null>(null)
 
   const { data: availability } = useAvailability(eventDate)
-  const { data: packages }     = usePackages(true)
+  const { data: packages } = usePackages(true)
 
   const filteredPackages = packages?.filter((p) => p.eventType === eventType) ?? []
   const isDateUnavailable = !!(eventDate && availability && !availability.available)
@@ -88,19 +89,19 @@ export default function NewBookingPage() {
     if (!selectedPackage || !eventDate || !venue.venue || !guestCount || !clientPhone) return
     mutate(
       {
-        packageId:             selectedPackage.id,
-        eventType,
+        packageId: selectedPackage.id,
+        eventType: eventType as any,
         eventDate,
-        venue:                 venue.venue,
-        venueLatitude:         venue.venueLatitude,
-        venueLongitude:        venue.venueLongitude,
+        venue: venue.venue,
+        venueLatitude: venue.venueLatitude,
+        venueLongitude: venue.venueLongitude,
         venueFormattedAddress: venue.venueFormattedAddress,
-        guestCount:            parseInt(guestCount),
+        guestCount: parseInt(guestCount),
         clientPhone,
-        notes:                 notes.trim() || undefined,
+        notes: notes.trim() || undefined,
         packageCustomizations: customizations,
         vendorCategories,
-        isProvincial:          venue.isProvincial,
+        isProvincial: (PROVINCIAL_PRICING_ENABLED && venue.isProvincial),
       },
       { onSuccess: () => router.push("/portal/bookings") },
     )
@@ -141,16 +142,16 @@ export default function NewBookingPage() {
               className={cn(
                 "flex items-center gap-1.5 rounded-lg px-2 sm:px-3 py-2 text-[11px] sm:text-[12px] font-semibold transition-colors min-w-0",
                 step === i ? "bg-primary-soft text-primary"
-                : i < step  ? "text-emerald-600"
-                : "text-text-muted",
+                  : i < step ? "text-emerald-600"
+                    : "text-text-muted",
               )}
               onClick={() => { if (i < step || (i === 1 && step0Valid)) setStep(i as Step) }}
             >
               <span className={cn(
                 "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold",
-                step === i  ? "bg-primary text-white"
-                : i < step ? "bg-emerald-500 text-white"
-                : "bg-border text-text-muted",
+                step === i ? "bg-primary text-white"
+                  : i < step ? "bg-emerald-500 text-white"
+                    : "bg-border text-text-muted",
               )}>
                 {i < step ? "✓" : i + 1}
               </span>
@@ -353,7 +354,7 @@ export default function NewBookingPage() {
               <p className="text-[13px] text-text-muted">
                 {filteredPackages.length} package{filteredPackages.length !== 1 ? "s" : ""} for {eventType.toLowerCase()}
               </p>
-              {venue.isProvincial && <Badge variant="warning">Provincial rates shown</Badge>}
+              {(PROVINCIAL_PRICING_ENABLED && venue.isProvincial) && <Badge variant="warning">Provincial rates shown</Badge>}
             </div>
             {filteredPackages.length === 0 ? (
               <div className="rounded-xl border border-border bg-background-blush p-8 text-center">
@@ -366,7 +367,7 @@ export default function NewBookingPage() {
                     key={pkg.id} pkg={pkg}
                     selected={selectedPackage?.id === pkg.id}
                     onSelect={setSelectedPackage}
-                    isProvincial={venue.isProvincial}
+                    isProvincial={(PROVINCIAL_PRICING_ENABLED && venue.isProvincial)}
                   />
                 ))}
               </div>
@@ -395,12 +396,12 @@ export default function NewBookingPage() {
                 Review your booking
               </p>
               {[
-                { label: "Event type",   value: EVENT_TYPES.find((t) => t.value === eventType)?.label ?? eventType },
-                { label: "Event date",   value: new Date(eventDate).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }) },
-                { label: "Venue",        value: venue.venueFormattedAddress ?? venue.venue },
-                { label: "Guest count",  value: `${guestCount} guests` },
-                { label: "Mobile",       value: clientPhone },
-                { label: "Package",      value: selectedPackage?.name ?? "—" },
+                { label: "Event type", value: EVENT_TYPES.find((t) => t.value === eventType)?.label ?? eventType },
+                { label: "Event date", value: new Date(eventDate).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }) },
+                { label: "Venue", value: venue.venueFormattedAddress ?? venue.venue },
+                { label: "Guest count", value: `${guestCount} guests` },
+                { label: "Mobile", value: clientPhone },
+                { label: "Package", value: selectedPackage?.name ?? "—" },
               ].map(({ label, value }) => (
                 <div key={label} className="flex items-start justify-between gap-4 text-[13px]">
                   <span className="text-text-muted shrink-0">{label}</span>
@@ -438,14 +439,14 @@ export default function NewBookingPage() {
               <div className="border-t border-border pt-3 flex items-center justify-between">
                 <span className="text-[12px] text-text-muted">Estimated price</span>
                 <div className="flex items-center gap-2">
-                  {venue.isProvincial && <Badge variant="warning">Provincial</Badge>}
+                  {(PROVINCIAL_PRICING_ENABLED && venue.isProvincial) && <Badge variant="warning">Provincial</Badge>}
                   <span className="text-[20px] font-bold tracking-tighter text-text-main">
                     {selectedPackage
                       ? fmt(
-                          venue.isProvincial && selectedPackage.priceProvincial
-                            ? Number(selectedPackage.priceProvincial)
-                            : Number(selectedPackage.price),
-                        )
+                        (PROVINCIAL_PRICING_ENABLED && venue.isProvincial) && selectedPackage.priceProvincial
+                          ? Number(selectedPackage.priceProvincial)
+                          : Number(selectedPackage.price),
+                      )
                       : "—"}
                   </span>
                 </div>

@@ -1,6 +1,7 @@
 // features/bookings/bookings.schema.ts
 
 import { z } from "zod"
+import { ACTIVE_EVENT_TYPES, PROVINCIAL_PRICING_ENABLED } from "./bookings.constants"
 
 const EVENT_TYPES      = ["WEDDING", "DEBUT", "CORPORATE", "BIRTHDAY", "OTHER"] as const
 const BOOKING_STATUSES = ["PENDING", "CONFIRMED", "CANCELLED", "CANCELLATION_REQUESTED"] as const
@@ -15,7 +16,7 @@ const VENDOR_CATEGORIES = [
 
 export const createBookingSchema = z.object({
   packageId:             z.string().min(1, "A service package must be selected"),
-  eventType:             z.enum(EVENT_TYPES, { error: `Must be one of: ${EVENT_TYPES.join(", ")}` }),
+  eventType:             z.enum(ACTIVE_EVENT_TYPES, { error: "Only Wedding and Debut events can be booked" }),
   eventDate:             z.string().min(1, "Event date is required")
     .refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date format" })
     .refine((v) => new Date(v) > new Date(), { message: "Event date must be in the future" }),
@@ -31,12 +32,13 @@ export const createBookingSchema = z.object({
   packageCustomizations: z.array(z.string().min(1)).optional(),
   // Vendor categories the client says they need
   vendorCategories:      z.array(z.enum(VENDOR_CATEGORIES)).optional(),
-  isProvincial:          z.boolean().optional(),
+  // Provincial pricing is disabled in this version → always priced at the standard rate.
+  isProvincial:          z.boolean().optional().transform((v) => (PROVINCIAL_PRICING_ENABLED ? v : false)),
 })
 
 export const updateBookingSchema = z.object({
   packageId:             z.string().min(1).optional(),
-  eventType:             z.enum(EVENT_TYPES).optional(),
+  eventType:             z.enum(ACTIVE_EVENT_TYPES, { error: "Only Wedding and Debut events can be booked" }).optional(),
   eventDate:             z.string()
     .refine((v) => !isNaN(Date.parse(v)), { message: "Invalid date format" })
     .refine((v) => new Date(v) > new Date(), { message: "Event date must be in the future" })
@@ -51,7 +53,7 @@ export const updateBookingSchema = z.object({
   notes:                 z.string().max(1000).optional(),
   packageCustomizations: z.array(z.string().min(1)).optional(),
   vendorCategories:      z.array(z.enum(VENDOR_CATEGORIES)).optional(),
-  isProvincial:          z.boolean().optional(),
+  isProvincial:          z.boolean().optional().transform((v) => (PROVINCIAL_PRICING_ENABLED ? v : undefined)),
 })
 
 export const updateBookingStatusSchema = z.object({

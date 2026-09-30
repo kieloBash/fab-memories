@@ -4,7 +4,7 @@
 /**
  * CLIENT sign-in — email address (or username) + password.
  *
- * This page is for CLIENT accounts only. Staff (ADMIN / COORDINATOR / VENDOR) sign in at /staff-login.
+ * This page is for CLIENT accounts only. Staff (ADMIN / COORDINATOR) sign in at /staff-login.
  * Both pages share the same finishing step (features/auth/finish-sign-in.ts): after Clerk accepts the password,
  * the server is asked whether this account belongs on THIS page (POST /api/auth/portal-check { portal: "client" }).
  * A staff account used here is refused, its session revoked, and the browser returns here with ?error=WRONG_PORTAL.
@@ -168,7 +168,7 @@ export default function SignInPage() {
       </p>
 
       <p className="mt-3 text-center text-[12px] text-text-muted">
-        Fab Memories staff or vendor?{" "}
+        Fab Memories staff?{" "}
         <Link href="/staff-login" className="font-medium text-primary hover:underline">
           Staff sign-in
         </Link>

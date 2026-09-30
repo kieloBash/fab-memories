@@ -52,13 +52,23 @@ describe.sequential("Booking vendors — coordinate a caterer for one event", ()
   let bookingId = ""
   let vendorId = ""
   let assignmentId = ""
+  let pendingBookingId = ""
 
   beforeAll(async () => {
     const users = await seedUsers()
     const pkg = await makePackage()
-    bookingId = (await makeBooking({ clientId: users.anna.id, packageId: pkg.id, vendorCategories: ["CATERING", "FLORALS"] })).id
+    // FR-31: vendors are assigned only to CONFIRMED bookings.
+    bookingId = (await makeBooking({ clientId: users.anna.id, packageId: pkg.id, vendorCategories: ["CATERING", "FLORALS"], status: "CONFIRMED" })).id
+    pendingBookingId = (await makeBooking({ clientId: users.anna.id, packageId: pkg.id, label: "pending" })).id
     actAs("admin")
     vendorId = (await call(vendorsPOST, { body: { name: `${RUN} Feast Co`, category: "CATERING" } })).json.id
+  })
+
+  it("assigning to a PENDING booking is refused → 409 BOOKING_NOT_CONFIRMED", async () => {
+    actAs("coordinator")
+    const r = await call(bvPOST, { params: { bookingId: pendingBookingId }, body: { vendorId, category: "CATERING" } })
+    expectStatus(r, 409)
+    expect(r.json.code).toBe("BOOKING_NOT_CONFIRMED")
   })
 
   it("COORDINATOR assigns the caterer → 201 (no date conflicts)", async () => {

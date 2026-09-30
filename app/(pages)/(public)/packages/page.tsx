@@ -10,15 +10,16 @@ import { usePublicPackages } from "@/features/packages"
 import { CheckCircle2, MapPin, ArrowRight, Sparkles, PackageSearch } from "lucide-react"
 import { SPRING } from "@/lib/framer/framer-utils"
 import { cn } from "@/lib/utils"
+import { isActiveEventType, PROVINCIAL_PRICING_ENABLED } from "@/features/bookings"
 import type { EventType } from "@/app/generated/prisma/client"
 
-const EVENT_TYPES: { value: EventType | "ALL"; label: string; emoji: string }[] = [
-  { value: "ALL",        label: "All events",      emoji: "✨" },
-  { value: "WEDDING",    label: "Wedding",         emoji: "💍" },
-  { value: "DEBUT",      label: "Debut",           emoji: "🌸" },
-  { value: "CORPORATE",  label: "Corporate Event", emoji: "🏢" },
-  { value: "BIRTHDAY",   label: "Birthday",        emoji: "🎂" },
-]
+const EVENT_TYPES: { value: EventType | "ALL" | any; label: string; emoji: string }[] = [
+  { value: "ALL", label: "All events", emoji: "✨" },
+  { value: "WEDDING", label: "Wedding", emoji: "💍" },
+  { value: "DEBUT", label: "Debut", emoji: "🌸" },
+  { value: "CORPORATE", label: "Corporate Event", emoji: "🏢" },
+  { value: "BIRTHDAY", label: "Birthday", emoji: "🎂" },
+].filter((t) => t.value === "ALL" || isActiveEventType(t.value))
 
 const fmt = (n: number) =>
   new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(n)
@@ -89,27 +90,29 @@ export default function PublicPackagesPage() {
             })}
           </div>
 
-          {/* Location toggle */}
-          <div className="flex items-center gap-2 rounded-pill border border-border bg-background-blush p-1 self-start sm:self-auto">
-            {[
-              { key: false, label: "Metro Manila" },
-              { key: true, label: "Provincial" },
-            ].map((opt) => (
-              <button
-                key={String(opt.key)}
-                onClick={() => setIsProvincial(opt.key)}
-                aria-pressed={isProvincial === opt.key}
-                className={cn(
-                  "rounded-pill px-3 py-1.5 text-[12px] font-medium transition-all",
-                  isProvincial === opt.key
-                    ? "bg-primary text-white shadow-primary-sm"
-                    : "text-text-sub hover:text-text-main",
-                )}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
+          {/* Location toggle — hidden while provincial pricing is a limitation */}
+          {PROVINCIAL_PRICING_ENABLED && (
+            <div className="flex items-center gap-2 rounded-pill border border-border bg-background-blush p-1 self-start sm:self-auto">
+              {[
+                { key: false, label: "Metro Manila" },
+                { key: true, label: "Provincial" },
+              ].map((opt) => (
+                <button
+                  key={String(opt.key)}
+                  onClick={() => setIsProvincial(opt.key)}
+                  aria-pressed={isProvincial === opt.key}
+                  className={cn(
+                    "rounded-pill px-3 py-1.5 text-[12px] font-medium transition-all",
+                    isProvincial === opt.key
+                      ? "bg-primary text-white shadow-primary-sm"
+                      : "text-text-sub hover:text-text-main",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </section>
 

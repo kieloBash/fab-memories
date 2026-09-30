@@ -19,6 +19,7 @@ export const WIPE_ORDER = [
   "auditLog",
   "auditChainState",
   "notification",
+  "emailLog",
   "coordinatorUnavailability",
   "staffAssignment",
   "bookingVendor",

@@ -16,7 +16,7 @@ export default function AdminUsersPage() {
     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={SPRING} className="flex flex-col gap-6">
       <PageHeader
         title="User accounts"
-        subtitle="Manage coordinator, vendor, and admin logins"
+        subtitle="Manage coordinator and admin logins"
         icon={UserCog}
         actions={<CreateStaffDialog />}
       />

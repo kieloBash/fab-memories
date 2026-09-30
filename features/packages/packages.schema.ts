@@ -1,14 +1,14 @@
 // features/packages/packages.schema.ts
 
 import { z } from "zod"
+import { ACTIVE_EVENT_TYPES } from "@/features/bookings/bookings.constants"
 
-const EVENT_TYPES = ["WEDDING", "DEBUT", "CORPORATE", "BIRTHDAY", "OTHER"] as const
 
 export const createPackageSchema = z.object({
   name: z.string().min(1, "Package name is required").max(100),
   description: z.string().max(500).optional(),
-  eventType: z.enum(EVENT_TYPES, {
-    error: `Event type must be one of: ${EVENT_TYPES.join(", ")}`,
+  eventType: z.enum(ACTIVE_EVENT_TYPES, {
+    error: "Packages can only be for Wedding or Debut events",
   }),
   price: z
     .number({ error: "Price must be a number" })
@@ -27,7 +27,7 @@ export const createPackageSchema = z.object({
 export const updatePackageSchema = z.object({
   name: z.string().min(1, "Package name is required").max(100).optional(),
   description: z.string().max(500).nullable().optional(),
-  eventType: z.enum(EVENT_TYPES, { error: `Event type must be one of: ${EVENT_TYPES.join(", ")}` }).optional(),
+  eventType: z.enum(ACTIVE_EVENT_TYPES, { error: "Packages can only be for Wedding or Debut events" }).optional(),
   price: z.number({ error: "Price must be a number" }).positive("Price must be greater than 0").multipleOf(0.01, "Price cannot have more than 2 decimal places").optional(),
   inclusions: z.array(z.string().min(1)).min(1, "At least one inclusion is required").optional(),
   isActive: z.boolean().optional(),

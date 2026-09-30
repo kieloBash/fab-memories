@@ -27,7 +27,9 @@
     "e2e:report": "playwright show-report e2e/report",
     "e2e:results": "node e2e/scripts/export-results.mjs",
     "e2e:cleanup": "tsx e2e/scripts/cleanup-e2e-data.ts",
-    "typecheck:e2e": "tsc -p tsconfig.e2e.json"
+    "typecheck:e2e": "tsc -p tsconfig.e2e.json",
+    "email:preview": "tsx scripts/email-preview.ts",
+    "email:test": "tsx scripts/send-test-email.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -69,7 +71,7 @@
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
     "@testing-library/user-event": "^14.6.7",
-    "@types/node": "^20.19.43",
+    "@types/node": "^20",
     "@types/nodemailer": "^8.0.1",
     "@types/pg": "^8.20.3",
     "@types/react": "^19",

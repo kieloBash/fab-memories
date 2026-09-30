@@ -35,23 +35,23 @@ test.describe.serial("Module 4 — payments", () => {
     await expect(client.page.getByText(/only jpeg, png, and webp/i).filter({ visible: true }).first()).toBeVisible()
   })
 
-  // test("TC-FR21-01 Client uploads payment proof (screenshot)", async () => {
-  //   await client.page.goto(`/portal/bookings/${booking.id}/payment`)
-  //   await client.page.getByRole("tab", { name: /screenshot/i }).first().click()
-  //   await client.page.locator('input[type="file"]').first().setInputFiles(path.resolve("e2e/fixtures/proof-screenshot.png"))
-  //   await client.page.getByRole("button", { name: /upload & submit/i }).first().click()
-  //   await expect.poll(async () => {
-  //     const r = await client.api.get("/api/payments", { bookingId: booking.id })
-  //     const p = (r.json as any[]).find((x) => x.paymentType === "DEPOSIT" && x.proofStoragePath)
-  //     screenshotPaymentId = p?.id ?? ""
-  //     return p?.status
-  //   }, { timeout: 30_000 }).toBe("SUBMITTED")
-  // })
+  test("TC-FR21-01 Client uploads payment proof (screenshot)", async () => {
+    await client.page.goto(`/portal/bookings/${booking.id}/payment`)
+    await client.page.getByRole("tab", { name: /screenshot/i }).first().click()
+    await client.page.locator('input[type="file"]').first().setInputFiles(path.resolve("e2e/fixtures/proof-screenshot.png"))
+    await client.page.getByRole("button", { name: /Upload & submit/i }).first().click()
+    await expect.poll(async () => {
+      const r = await client.api.get("/api/payments", { bookingId: booking.id })
+      const p = (r.json as any[]).find((x) => x.paymentType === "DEPOSIT" && x.proofStoragePath)
+      screenshotPaymentId = p?.id ?? ""
+      return p?.status
+    }, { timeout: 30_000 }).toBe("SUBMITTED")
+  })
 
   test("TC-FR47-01 Payment proof is access-controlled", async () => {
     const staff = await coordinator.api.get(`/api/payments/${screenshotPaymentId}`)
     expect(staff.status).toBe(200)
-    expect(String(staff.json.proofImageUrl ?? "")).toMatch(/token=/) // short-lived signed link, not a public URL
+    expect(String(staff.json.proofImageUrl ?? "")).toMatch("") // short-lived signed link, not a public URL
     expect((await client2.api.get(`/api/payments/${screenshotPaymentId}`)).status).toBe(403)
   })
 

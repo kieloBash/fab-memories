@@ -11,7 +11,6 @@ import {
 } from "@/features/vendors/vendors.query"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
-import { BookingStatus } from "@/app/generated/prisma/enums"
 
 type Params = { params: Promise<{ bookingId: string }> }
 
@@ -73,7 +72,7 @@ export async function POST(req: Request, { params }: Params) {
     )
   }
 
-  const body = await req.json().catch(() => ({}))
+  const body   = await req.json().catch(() => ({}))
   const parsed = assignVendorSchema.safeParse(body)
   if (!parsed.success)
     return NextResponse.json(
@@ -101,11 +100,11 @@ export async function POST(req: Request, { params }: Params) {
   )
 
   await logAction({
-    userId: actor.id,
-    action: "CREATE",
-    module: "VENDOR",
+    userId:      actor.id,
+    action:      "CREATE",
+    module:      "VENDOR",
     description: `${actor.role} assigned vendor to booking ${bookingId}`,
-    metadata: { bookingId, vendorId: parsed.data.vendorId, conflicts },
+    metadata:    { bookingId, vendorId: parsed.data.vendorId, conflicts },
   })
 
   return NextResponse.json({ ...assignment, conflicts }, { status: 201 })

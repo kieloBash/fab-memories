@@ -48,3 +48,6 @@ next-env.d.ts
 /e2e/report/
 /e2e/results/
 /test-results/
+
+# Email template previews (npm run email:preview)
+/email-previews/

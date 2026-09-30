@@ -32,7 +32,7 @@ async function cleanup(bookingIds: string[], userIds: string[]) {
 }
 
 async function main() {
-  delete process.env.SMTP_HOST; _resetEmailTransportForTests()
+  delete process.env.GMAIL_USER; _resetEmailTransportForTests()
   const anna = await prisma.user.findUnique({ where: { username: "client_anna" } })
   const admin = await prisma.user.findUnique({ where: { username: "admin" } })
   const coordinator = await prisma.user.findUnique({ where: { username: "coordinator" } })

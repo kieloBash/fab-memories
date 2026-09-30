@@ -26,14 +26,15 @@ import type { Package } from "@/features/packages"
 import { EVENT_TYPE_LABELS } from "@/features/bookings"
 import { SPRING } from "@/lib/framer/framer-utils"
 import { cn } from "@/lib/utils"
+import { isActiveEventType, PROVINCIAL_PRICING_ENABLED } from "@/features/bookings"
 
-const EVENT_TYPES: { value: EventType; label: string }[] = [
-  { value: "WEDDING",   label: "Wedding" },
-  { value: "DEBUT",     label: "Debut" },
+const EVENT_TYPES: { value: EventType | any; label: string }[] = [
+  { value: "WEDDING", label: "Wedding" },
+  { value: "DEBUT", label: "Debut" },
   { value: "CORPORATE", label: "Corporate Event" },
-  { value: "BIRTHDAY",  label: "Birthday" },
-  { value: "OTHER",     label: "Other" },
-]
+  { value: "BIRTHDAY", label: "Birthday" },
+  { value: "OTHER", label: "Other" },
+].filter((t) => isActiveEventType(t.value))
 
 const PH_MOBILE_REGEX = /^(\+63|0)9\d{9}$/
 
@@ -41,22 +42,22 @@ interface Props { params: Promise<{ bookingId: string }> }
 
 export default function EditBookingPage({ params }: Props) {
   const { bookingId } = use(params)
-  const router        = useRouter()
+  const router = useRouter()
 
   const { data: booking, isLoading } = useBooking(bookingId)
-  const { mutate, isPending }        = useUpdateBooking()
-  const { data: packages }           = usePackages(true)
+  const { mutate, isPending } = useUpdateBooking()
+  const { data: packages } = usePackages(true)
 
-  const [eventType,     setEventType]     = useState<EventType>("WEDDING")
-  const [eventDate,     setEventDate]     = useState("")
-  const [venue,         setVenue]         = useState<VenuePickerValue>({ venue: "" })
-  const [guestCount,    setGuestCount]    = useState("")
-  const [clientPhone,   setClientPhone]   = useState("")
-  const [notes,         setNotes]         = useState("")
+  const [eventType, setEventType] = useState<EventType>("WEDDING")
+  const [eventDate, setEventDate] = useState("")
+  const [venue, setVenue] = useState<VenuePickerValue>({ venue: "" })
+  const [guestCount, setGuestCount] = useState("")
+  const [clientPhone, setClientPhone] = useState("")
+  const [notes, setNotes] = useState("")
   const [customizations, setCustomizations] = useState<string[]>([])
-  const [newCustom,     setNewCustom]     = useState("")
-  const [selectedPkg,   setSelectedPkg]   = useState<Package | null>(null)
-  const [initialized,   setInitialized]   = useState(false)
+  const [newCustom, setNewCustom] = useState("")
+  const [selectedPkg, setSelectedPkg] = useState<Package | null>(null)
+  const [initialized, setInitialized] = useState(false)
 
   // Pre-fill from existing booking
   useEffect(() => {
@@ -64,11 +65,11 @@ export default function EditBookingPage({ params }: Props) {
       setEventType(booking.eventType)
       setEventDate(booking.eventDate.split("T")[0])
       setVenue({
-        venue:                 booking.venue,
-        venueLatitude:         booking.venueLatitude ?? undefined,
-        venueLongitude:        booking.venueLongitude ?? undefined,
+        venue: booking.venue,
+        venueLatitude: booking.venueLatitude ?? undefined,
+        venueLongitude: booking.venueLongitude ?? undefined,
         venueFormattedAddress: booking.venueFormattedAddress ?? undefined,
-        isProvincial:          booking.isProvincial,
+        isProvincial: booking.isProvincial,
       })
       setGuestCount(String(booking.guestCount))
       setClientPhone(booking.clientPhone)
@@ -86,11 +87,11 @@ export default function EditBookingPage({ params }: Props) {
   }, [booking, packages, selectedPkg])
 
   const { data: availability } = useAvailability(eventDate)
-  const isDateChanged     = eventDate !== booking?.eventDate.split("T")[0]
+  const isDateChanged = eventDate !== booking?.eventDate.split("T")[0]
   const isDateUnavailable = !!(isDateChanged && availability && !availability.available)
-  const phoneValid        = PH_MOBILE_REGEX.test(clientPhone)
-  const phoneError        = clientPhone.length > 0 && !phoneValid
-  const filteredPkgs      = packages?.filter((p) => p.eventType === eventType) ?? []
+  const phoneValid = PH_MOBILE_REGEX.test(clientPhone)
+  const phoneError = clientPhone.length > 0 && !phoneValid
+  const filteredPkgs = packages?.filter((p) => p.eventType === eventType) ?? []
 
   const addCustom = () => {
     const t = newCustom.trim()
@@ -105,18 +106,18 @@ export default function EditBookingPage({ params }: Props) {
       {
         id: bookingId,
         input: {
-          packageId:             selectedPkg?.id,
-          eventType,
+          packageId: selectedPkg?.id,
+          eventType: eventType as any,
           eventDate,
-          venue:                 venue.venue,
-          venueLatitude:         venue.venueLatitude,
-          venueLongitude:        venue.venueLongitude,
+          venue: venue.venue,
+          venueLatitude: venue.venueLatitude,
+          venueLongitude: venue.venueLongitude,
           venueFormattedAddress: venue.venueFormattedAddress,
-          guestCount:            parseInt(guestCount),
+          guestCount: parseInt(guestCount),
           clientPhone,
-          notes:                 notes.trim() || undefined,
+          notes: notes.trim() || undefined,
           packageCustomizations: customizations,
-          isProvincial:          venue.isProvincial,
+          isProvincial: (PROVINCIAL_PRICING_ENABLED && venue.isProvincial),
         },
       },
       { onSuccess: () => router.push(`/portal/bookings/${bookingId}`) },
@@ -246,15 +247,15 @@ export default function EditBookingPage({ params }: Props) {
           {filteredPkgs.length === 0
             ? <p className="text-[13px] text-text-muted">No packages for this event type.</p>
             : <div className="grid gap-3">
-                {filteredPkgs.map((pkg) => (
-                  <PackageCard
-                    key={pkg.id} pkg={pkg}
-                    selected={selectedPkg?.id === pkg.id}
-                    onSelect={setSelectedPkg}
-                    isProvincial={venue.isProvincial}
-                  />
-                ))}
-              </div>}
+              {filteredPkgs.map((pkg) => (
+                <PackageCard
+                  key={pkg.id} pkg={pkg}
+                  selected={selectedPkg?.id === pkg.id}
+                  onSelect={setSelectedPkg}
+                  isProvincial={(PROVINCIAL_PRICING_ENABLED && venue.isProvincial)}
+                />
+              ))}
+            </div>}
         </div>
 
         {/* Customizations */}

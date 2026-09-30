@@ -11,14 +11,15 @@ import { Plus, X } from "lucide-react"
 import { useState } from "react"
 import type { CreatePackageInput } from "../packages.schema"
 import type { PackageWithBookingCount } from "../packages.types"
+import { isActiveEventType } from "@/features/bookings/bookings.constants"
 
-const EVENT_TYPES: { value: EventType; label: string }[] = [
+const EVENT_TYPES: { value: EventType | any; label: string }[] = [
   { value: "WEDDING", label: "Wedding" },
   { value: "DEBUT", label: "Debut" },
   { value: "CORPORATE", label: "Corporate Event" },
   { value: "BIRTHDAY", label: "Birthday" },
   { value: "OTHER", label: "Other" },
-]
+].filter((t) => isActiveEventType(t.value))
 
 interface PackageFormProps {
   initial?: PackageWithBookingCount
@@ -46,7 +47,7 @@ export function PackageForm({ initial, onSubmit, isPending, submitLabel, pending
     onSubmit({
       name: name.trim(),
       description: description.trim() || undefined,
-      eventType,
+      eventType: eventType as any,
       price: parseFloat(price),
       inclusions: cleanedInclusions,
       isActive: initial?.isActive ?? true,

@@ -20,7 +20,7 @@ const rows = []
 function walk(suite) {
   for (const s of suite.suites ?? []) walk(s)
   for (const spec of suite.specs ?? []) {
-    const m = /^(TC-FR\d{2}-\d{2})\s+(.*)$/.exec(spec.title)
+    const m = /^(TC-(?:FR\d{2}|EMAIL)-\d{2})\s+(.*)$/.exec(spec.title)
     if (!m) continue
     for (const t of spec.tests ?? []) {
       if (t.projectName !== "desktop-chrome") continue

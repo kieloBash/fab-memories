@@ -2,6 +2,8 @@
 
 import { auditChanges } from "@/lib/audit/redact"
 import { notify } from "@/lib/notifications/notify"
+import { emailBookingStatusChanged } from "@/lib/email/client-emails"
+import { bookingStatusEmail } from "@/lib/email/templates"
 import {
   cancelBookingRecord,
   confirmBookingRecord,
@@ -159,6 +161,11 @@ export async function PATCH(req: Request, { params }: Params) {
   if (!r_status.ok) return r_status.response
   const updated = r_status.value
 
+  // FR-12: email the client when staff confirm the booking, or keep it confirmed after a cancellation request.
+  if (parsed.data.status === "CONFIRMED") {
+    await emailBookingStatusChanged(existing, isRestore ? "RESTORED" : "CONFIRMED")
+  }
+
   // Client notified when STAFF cancels their booking (FR-15) — best-effort, never blocks the response.
   if (parsed.data.status === "CANCELLED") {
     await notify({
@@ -167,6 +174,16 @@ export async function PATCH(req: Request, { params }: Params) {
       title: "Your booking was cancelled",
       body: `Your ${existing.eventType.toLowerCase()} booking on ${new Date(existing.eventDate).toLocaleDateString("en-PH")} has been cancelled.`,
       link: `/portal/bookings/${bookingId}`,
+      bookingId,
+      email: bookingStatusEmail({
+        kind: "CANCELLED",
+        clientName: existing.client.fullName,
+        bookingId,
+        eventType: existing.eventType,
+        eventDate: existing.eventDate,
+        venue: existing.venue,
+        reason: parsed.data.cancellationReason ?? null,
+      }),
     })
   }
 

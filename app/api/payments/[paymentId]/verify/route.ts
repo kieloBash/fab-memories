@@ -12,6 +12,8 @@ import {
   verifyInstallmentPaymentRecord,
 } from "@/features/payments/payments.query"
 import { notify } from "@/lib/notifications/notify"
+import { emailBookingStatusChanged, emailPaymentVerified } from "@/lib/email/client-emails"
+import { paymentFlaggedEmail } from "@/lib/email/templates"
 import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
@@ -71,6 +73,17 @@ export async function PATCH(req: Request, { params }: Params) {
     title: "A payment needs your attention",
     body: `Your ${existing.paymentType.toLowerCase()} payment for ${existing.booking.eventType.toLowerCase()} on ${new Date(existing.booking.eventDate).toLocaleDateString("en-PH")} was flagged${verificationNote ? `: ${verificationNote}` : "."}`,
     link: `/portal/bookings/${existing.booking.id}`,
+    bookingId: existing.booking.id,
+    email: paymentFlaggedEmail({
+      clientName: existing.booking.client.fullName,
+      bookingId: existing.booking.id,
+      eventType: existing.booking.eventType,
+      eventDate: existing.booking.eventDate,
+      paymentType: existing.paymentType,
+      amount: Number(existing.amount.toString()),
+      method: existing.method,
+      note: verificationNote,
+    }),
   })
 
     return NextResponse.json(payment)
@@ -93,6 +106,9 @@ export async function PATCH(req: Request, { params }: Params) {
   )
   if (!r_payment_deposit.ok) return r_payment_deposit.response
   const payment = r_payment_deposit.value
+  // FR-12: the verified deposit CONFIRMS the booking — email the client (best-effort).
+  await emailBookingStatusChanged(existing.booking, "CONFIRMED")
+  await emailPaymentVerified(existing.booking, existing)
     return NextResponse.json(payment)
   }
 
@@ -111,6 +127,7 @@ export async function PATCH(req: Request, { params }: Params) {
   )
   if (!r_payment_full.ok) return r_payment_full.response
   const payment = r_payment_full.value
+  await emailPaymentVerified(existing.booking, existing)
     return NextResponse.json(payment)
   }
 
@@ -152,5 +169,6 @@ export async function PATCH(req: Request, { params }: Params) {
   )
   if (!r_payment_inst.ok) return r_payment_inst.response
   const payment = r_payment_inst.value
+  await emailPaymentVerified(existing.booking, existing)
   return NextResponse.json(payment)
 }

@@ -8,6 +8,7 @@ import {
   removeVendorFromBooking,
   updateBookingVendorRecord,
 } from "@/features/vendors/vendors.query"
+import { prisma } from "@/lib/prisma"
 import { NextResponse } from "next/server"
 
 type Params = { params: Promise<{ bookingId: string; vendorId: string }> }
@@ -31,6 +32,10 @@ export async function PATCH(req: Request, { params }: Params) {
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
       { status: 422 },
     )
+
+  // 404 (not 500) when this vendor is not assigned to this booking.
+  if (!(await assignmentExists(bookingId, vendorId)))
+    return NextResponse.json({ error: "This vendor is not assigned to this booking" }, { status: 404 })
 
   const updated = await updateBookingVendorRecord(bookingId, vendorId, parsed.data)
   await logAction({
@@ -56,6 +61,8 @@ export async function DELETE(_req: Request, { params }: Params) {
   if (!actor) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { bookingId, vendorId } = await params
+  if (!(await assignmentExists(bookingId, vendorId)))
+    return NextResponse.json({ error: "This vendor is not assigned to this booking" }, { status: 404 })
   await removeVendorFromBooking(bookingId, vendorId)
 
   await logAction({
@@ -67,4 +74,12 @@ export async function DELETE(_req: Request, { params }: Params) {
   })
 
   return NextResponse.json({ success: true })
+}
+
+async function assignmentExists(bookingId: string, vendorId: string) {
+  const row = await prisma.bookingVendor.findUnique({
+    where: { bookingId_vendorId: { bookingId, vendorId } },
+    select: { id: true },
+  })
+  return !!row
 }

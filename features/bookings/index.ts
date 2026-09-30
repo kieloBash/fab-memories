@@ -3,8 +3,9 @@
 export {
   BOOKING_STATUS_LABELS, bookingKeys,
   bookingRoutes, EVENT_TYPE_LABELS,
-  PAYMENT_PLAN_LABELS
+  PAYMENT_PLAN_LABELS, ACTIVE_EVENT_TYPES, isActiveEventType, PROVINCIAL_PRICING_ENABLED
 } from "./bookings.constants"
+export type { ActiveEventType } from "./bookings.constants"
 
 export {
   bookingFilterSchema, createBookingSchema,

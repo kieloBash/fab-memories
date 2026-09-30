@@ -5,6 +5,7 @@ import { auditedTransaction, logAction } from "@/lib/audit/log"
 import { attempt } from "@/lib/route-errors"
 import { recordManualPaymentSchema } from "@/features/payments/payments.schema"
 import { recordManualPaymentRecord } from "@/features/payments/payments.query"
+import { emailBookingStatusChanged, emailPaymentVerified } from "@/lib/email/client-emails"
 import { getBookingById } from "@/features/bookings/bookings.query"
 import { NextResponse } from "next/server"
 
@@ -86,6 +87,11 @@ export async function POST(req: Request) {
   )
   if (!r_payment.ok) return r_payment.response
   const payment = r_payment.value
+
+  // Email the client (best-effort): a recorded DEPOSIT confirms the booking (FR-12); every manual payment is
+  // recorded by staff and therefore already verified.
+  if (parsed.data.paymentType === "DEPOSIT") await emailBookingStatusChanged(booking, "CONFIRMED")
+  await emailPaymentVerified(booking, { paymentType: parsed.data.paymentType, amount: parsed.data.amount, method: parsed.data.method })
 
   return NextResponse.json(payment, { status: 201 })
 }

@@ -66,13 +66,15 @@ describe("StaffAccountsTable", () => {
   it("Edit → change the role → sends only the changed field", async () => {
     const user = userEvent.setup()
     routeGet({ "/staff-accounts": [coord] })
-    mockApi.patch.mockResolvedValue({ data: { ...coord, role: "VENDOR" } })
+    mockApi.patch.mockResolvedValue({ data: { ...coord, role: "ADMIN" } })
     renderWithClient(<StaffAccountsTable currentUsername="admin" />)
     await user.click(await screen.findByTestId("staff-edit-button"))
     await user.click(screen.getByRole("combobox"))
-    await user.click(await screen.findByRole("option", { name: "Vendor" }))
+    // VENDOR is no longer offered (no vendor accounts in this version) — only Admin and Coordinator.
+    expect(screen.queryByRole("option", { name: /vendor/i })).not.toBeInTheDocument()
+    await user.click(await screen.findByRole("option", { name: "Admin" }))
     await user.click(screen.getByRole("button", { name: /save changes/i }))
-    await waitFor(() => expect(mockApi.patch).toHaveBeenCalledWith("/staff-accounts/u2", { role: "VENDOR" }))
+    await waitFor(() => expect(mockApi.patch).toHaveBeenCalledWith("/staff-accounts/u2", { role: "ADMIN" }))
   })
 
   it("the role selector is disabled when editing your OWN account", async () => {

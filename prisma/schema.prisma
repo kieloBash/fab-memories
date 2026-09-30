@@ -424,3 +424,29 @@ model Notification {
   @@index([userId, isRead])
   @@index([createdAt])
 }
+
+// ── Email delivery log ─────────────────────────────────────────────────────────
+// One row per email the system tries to send (lib/email/send.ts). Lets the administrator — and the
+// Playwright e2e tests — confirm that an action really triggered its email and whether Gmail accepted it.
+// The message body is NOT stored (privacy); only recipient, subject, kind and the delivery result.
+enum EmailStatus {
+  SENT    // accepted by Gmail
+  FAILED  // Gmail refused or was unreachable
+  LOGGED  // no email credentials configured — written to the server log only
+}
+
+model EmailLog {
+  id        String      @id @default(cuid())
+  to        String
+  subject   String
+  kind      String      // e.g. BOOKING_CONFIRMED, PAYMENT_VERIFIED, PAYMENT_FLAGGED, TEST
+  bookingId String?
+  status    EmailStatus
+  mode      String      // gmail-oauth2 | gmail-app-password | console
+  messageId String?
+  error     String?
+  createdAt DateTime    @default(now())
+
+  @@index([to, createdAt])
+  @@index([createdAt])
+}

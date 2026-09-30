@@ -29,6 +29,23 @@ export const PAYMENT_PLAN_LABELS = {
   INSTALLMENT: "Installment Plan",
 } as const
 
+/**
+ * Event types that can be booked and offered as packages. The thesis scope is Wedding and Debut only;
+ * CORPORATE, BIRTHDAY and OTHER stay in the database enum (old records still display) but cannot be chosen.
+ * Add a value back here to re-enable it everywhere (forms, public catalog, API validation).
+ */
+export const ACTIVE_EVENT_TYPES = ["WEDDING", "DEBUT"] as const
+export type ActiveEventType = (typeof ACTIVE_EVENT_TYPES)[number]
+export const isActiveEventType = (t: string): t is ActiveEventType =>
+  (ACTIVE_EVENT_TYPES as readonly string[]).includes(t)
+
+/**
+ * Location-based (provincial) pricing — a thesis LIMITATION in this version (see Delimitations).
+ * When false: the public catalog shows one price, booking forms hide the provincial badges, and the API
+ * ignores `isProvincial` (bookings are always priced at the standard rate). Set to true to bring it back.
+ */
+export const PROVINCIAL_PRICING_ENABLED = false
+
 export const EVENT_TYPE_LABELS = {
   WEDDING:   "Wedding",
   DEBUT:     "Debut",

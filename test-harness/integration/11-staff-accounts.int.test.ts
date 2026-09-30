@@ -39,12 +39,18 @@ describe.sequential("Staff accounts", () => {
     expectStatus(await call(GET), 200)
   })
 
-  it("ADMIN renames them and changes the role to VENDOR → Clerk metadata updated", async () => {
+  it("VENDOR is no longer an assignable role → 422 (vendors have no accounts)", async () => {
+    actAs("admin")
+    const r = await call(accountPATCH, { method: "PATCH", params: { id }, body: { role: "VENDOR" } })
+    expectStatus(r, 422)
+  })
+
+  it("ADMIN renames them and changes the role to ADMIN → Clerk metadata updated", async () => {
     actAs("admin")
     const before = clerkCalls().updateUserMetadata
-    const r = await call(accountPATCH, { method: "PATCH", params: { id }, body: { fullName: "Itest Vendor", role: "VENDOR" } })
+    const r = await call(accountPATCH, { method: "PATCH", params: { id }, body: { fullName: "Itest Admin", role: "ADMIN" } })
     expectStatus(r, 200)
-    expect(r.json).toMatchObject({ fullName: "Itest Vendor", role: "VENDOR" })
+    expect(r.json).toMatchObject({ fullName: "Itest Admin", role: "ADMIN" })
     expect(clerkCalls().updateUserMetadata).toBe(before + 1)
   })
 

@@ -15,10 +15,10 @@ export default async function VendorLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { role } = await getPageSession();
-  if (!role || !['ADMIN', 'VENDOR'].includes(role)) {
-    redirect('/unauthorized');
-  }
+  // No vendor portal in this version (see Delimitations): vendors receive a read-only event brief link
+  // instead of an account, so these pages are closed to everyone.
+  await getPageSession();
+  redirect('/unauthorized');
 
   return <>{children}</>;
 }

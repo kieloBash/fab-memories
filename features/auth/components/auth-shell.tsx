@@ -87,8 +87,8 @@ export function AuthShell({ children, variant = "client", eyebrow, title, subtit
                 Internal staff access
               </h2>
               <p className="text-[13px] text-white/60 leading-relaxed max-w-xs">
-                This area is restricted to Fab Memories Events administrators,
-                coordinators, and vendors. Accounts are created by an administrator —
+                This area is restricted to Fab Memories Events administrators
+                and coordinators. Accounts are created by an administrator —
                 there is no public sign-up here.
               </p>
               <div className="flex items-center gap-2.5 rounded-xl border border-white/10 bg-white/5 p-4 max-w-xs">

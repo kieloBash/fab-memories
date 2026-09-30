@@ -4,7 +4,7 @@
 // proxy (redirects) and the tests.
 //
 //   /sign-in      → CLIENT accounts only
-//   /staff-login  → ADMIN, COORDINATOR and VENDOR accounts only
+//   /staff-login  → ADMIN and COORDINATOR accounts only (VENDOR accounts are no longer used)
 //
 // CHANGE: SESSION_EXPIRED removed (custom session expiry removed). SESSION_ENDED added — shown when Clerk ended
 // the session (maximum lifetime / inactivity timeout / revoked) and lib/axios.ts sent the browser back here.

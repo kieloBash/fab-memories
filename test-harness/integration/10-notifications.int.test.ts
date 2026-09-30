@@ -1,13 +1,15 @@
 // test-harness/integration/10-notifications.int.test.ts
 //
-// Notifications: the bell's list, mark-one / mark-all read, and the due-date reminder cron.
+// Notifications: the bell's list, mark-one / mark-all read, the due-date reminder cron, and the client e-mails
+// sent when a booking's status changes (FR-12) or a payment is verified.
 import { POST as cronPOST } from "@/app/api/cron/due-date-reminders/route"
+import { PATCH as verifyPATCH } from "@/app/api/payments/[paymentId]/verify/route"
 import { POST as markAllPOST } from "@/app/api/notifications/mark-all-read/route"
 import { PATCH as markOnePATCH } from "@/app/api/notifications/[id]/route"
 import { GET as listGET } from "@/app/api/notifications/route"
 import { prisma } from "@/lib/prisma"
 import { beforeAll, describe, expect, it } from "vitest"
-import { makeBooking, makePackage, seedUsers } from "./_support/factories"
+import { makeBooking, makePackage, makePayment, seedUsers } from "./_support/factories"
 import { call, expectStatus } from "./_support/http"
 import { sentEmails } from "./_support/mocks/email"
 import { actAs } from "./_support/session"
@@ -52,5 +54,32 @@ describe.sequential("Notifications", () => {
     actAs("client_anna")
     expectStatus(await call(markAllPOST, { body: {} }), 200)
     expect((await call(listGET)).json.unreadCount).toBe(0)
+  })
+})
+
+describe.sequential("Client e-mails on status change (FR-12) and verified payments", () => {
+  it("verifying a deposit e-mails the client: booking confirmed + payment verified", async () => {
+    const pkg = await makePackage()
+    const b = await makeBooking({ clientId: users.anna.id, packageId: pkg.id })
+    const dep = await makePayment({ bookingId: b.id, amount: 25_000 })
+    const before = sentEmails.length
+
+    actAs("admin")
+    const r = await call(verifyPATCH, { method: "PATCH", params: { paymentId: dep.id }, body: { action: "VERIFY" } })
+    expectStatus(r, 200)
+
+    const mine = sentEmails.slice(before).filter((m) => m.to === users.anna.email)
+    expect(mine.some((m) => /booking is confirmed/i.test(m.subject))).toBe(true)
+    expect(mine.some((m) => /payment verified/i.test(m.subject))).toBe(true)
+  })
+
+  it("flagging a payment does NOT send the 'verified' e-mail", async () => {
+    const pkg = await makePackage()
+    const b = await makeBooking({ clientId: users.anna.id, packageId: pkg.id })
+    const dep = await makePayment({ bookingId: b.id, amount: 25_000 })
+    const before = sentEmails.length
+    actAs("admin")
+    expectStatus(await call(verifyPATCH, { method: "PATCH", params: { paymentId: dep.id }, body: { action: "FLAG", verificationNote: "blurry" } }), 200)
+    expect(sentEmails.slice(before).some((m) => /payment verified/i.test(m.subject))).toBe(false)
   })
 })

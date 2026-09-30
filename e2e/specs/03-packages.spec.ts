@@ -20,6 +20,10 @@ test.describe.serial("Module 3 — service packages", () => {
     pkg = await createPackage(admin, { name: tag("Full Planning Wedding") })
     const pub = await anon.api.get("/api/public/packages")
     expect((pub.json as any[]).some((p) => p.id === pkg.id)).toBe(true)
+    // Only in-scope event types are offered.
+    expect((pub.json as any[]).every((p) => ["WEDDING", "DEBUT"].includes(p.eventType))).toBe(true)
+    const corp = await admin.api.post("/api/packages", { name: tag("Corporate"), eventType: "CORPORATE", price: 50_000, inclusions: ["Emcee"] })
+    expect(corp.status).toBe(422)
   })
 
   test("TC-FR17-02 Admin edits and deactivates a package", async () => {
@@ -32,16 +36,13 @@ test.describe.serial("Module 3 — service packages", () => {
     expect((await admin.api.patch(`/api/packages/${pkg.id}`, { isActive: true })).status).toBe(200)
   })
 
-  test("TC-FR18-01 Metro Manila vs provincial price", async () => {
-    // Provincial prices can currently only come from the seed data (the package form has no field for them),
-    // so this uses the first public package that has one.
+  // FR-18 (provincial pricing) is deferred to future development — a limitation in this version.
+  // With PROVINCIAL_PRICING_ENABLED = false the public catalog shows one price and bookings ignore isProvincial.
+  test("Provincial pricing is switched off (FR-18 deferred)", async () => {
     const pub = await anon.api.get("/api/public/packages")
-    const withProv = (pub.json as any[]).find((p) => p.priceProvincial && Number(p.priceProvincial) !== Number(p.price))
-    test.skip(!withProv, "No active package has a provincial price — see README §6 (admin cannot set it).")
-    const b = await createBooking(client, withProv.id, { eventType: withProv.eventType, isProvincial: true })
-    expect(Number(b.agreedPrice)).toBe(Number(withProv.priceProvincial))
-    await anon.page.goto("/packages")
-    await expect(anon.page.getByText(/provincial/i).filter({ visible: true }).first()).toBeVisible()
+    expect((pub.json as any[]).every((p) => p.priceProvincial === undefined)).toBe(true)
+    const b = await createBooking(client, pkg.id, { isProvincial: true })
+    expect((await admin.api.get(`/api/bookings/${b.id}`)).json.isProvincial).toBe(false)
   })
 
   test("TC-FR19-01 Package customizations are saved with the booking", async () => {
