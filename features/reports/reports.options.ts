@@ -3,6 +3,7 @@
 // Dropdown options for the report filter bar. Client-safe.
 
 import { EVENT_TYPE_LABELS, humanize } from "./reports.format"
+import { ACTIVE_EVENT_TYPES } from "@/features/bookings/bookings.constants"
 import type { ReportType } from "./reports.constants"
 import type { ReportFilterFormValues } from "./reports.schema"
 
@@ -12,7 +13,8 @@ const opts = (values: string[], labels?: Record<string, string>): Option[] =>
   values.map((v) => ({ value: v, label: labels?.[v] ?? humanize(v) }))
 
 export const BOOKING_STATUS_OPTIONS = opts(["PENDING", "CONFIRMED", "CANCELLATION_REQUESTED", "CANCELLED"])
-export const EVENT_TYPE_OPTIONS     = opts(["WEDDING", "DEBUT", "CORPORATE", "BIRTHDAY", "OTHER"], EVENT_TYPE_LABELS)
+// SCOPE: Wedding and Debut only. The report API still accepts the old values so historical data stays queryable.
+export const EVENT_TYPE_OPTIONS     = opts([...ACTIVE_EVENT_TYPES], EVENT_TYPE_LABELS)
 export const PAYMENT_STATUS_OPTIONS = opts(["SUBMITTED", "VERIFIED", "FLAGGED", "PENDING"])
 export const PAYMENT_TYPE_OPTIONS   = opts(["DEPOSIT", "INSTALLMENT", "FULL_BALANCE"])
 export const PAYMENT_METHOD_OPTIONS = opts(["GCASH", "MAYA", "BANK_TRANSFER", "CHEQUE", "CASH"], {

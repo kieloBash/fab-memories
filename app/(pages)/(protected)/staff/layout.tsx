@@ -12,6 +12,9 @@ import { redirect } from "next/navigation";
  *
  * User accounts now uses "UserCog" icon (distinct from "Users").
  *
+ * SCOPE: "Documents" removed from the admin and coordinator menus — document generation is out of scope
+ * (thesis delimitation). The /staff/admin/documents and /staff/coordinator/documents pages now redirect.
+ *
  * FIX (login redirects): a user with no role in the session token used to be sent to /portal, which sent them
  * straight back here — a redirect loop. The role now falls back to the database (lib/clerk/page-session.ts);
  * signed-out visitors go to /staff-login; a truly unknown role goes to /unauthorized.
@@ -23,7 +26,6 @@ const adminNavItems = [
   { href: "/staff/admin/packages", label: "Packages", icon: "Package" },
   { href: "/staff/admin/vendors", label: "Vendors", icon: "Store" },
   { href: "/staff/admin/staff", label: "Staff scheduling", icon: "Users" },
-  { href: "/staff/admin/documents", label: "Documents", icon: "FileText" },
   { href: "/staff/admin/audit", label: "Audit trail", icon: "ShieldCheck" },
   { href: "/staff/admin/reports", label: "Reports", icon: "BarChart3" },
   { href: "/staff/admin/users", label: "User accounts", icon: "UserCog" },
@@ -38,7 +40,6 @@ const coordinatorNavItems = [
   { href: "/staff/coordinator/staff", label: "Staff scheduling", icon: "Users" },
   { href: "/staff/coordinator/availability", label: "My availability", icon: "CalendarOff" },
   { href: "/staff/coordinator/reports", label: "Reports", icon: "BarChart3" },
-  // { href: "/staff/coordinator/documents", label: "Documents",       icon: "FileText" },
 ];
 
 const vendorNavItems = [

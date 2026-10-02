@@ -1,21 +1,11 @@
 // app/(pages)/(protected)/portal/documents/page.tsx
+//
+// SCOPE: document generation (contracts, invoices, receipts, checklists) is OUT OF SCOPE for this version —
+// it is listed in the thesis delimitations and deferred to a future build. The menu entry was removed; this
+// route stays only so an old bookmark or a typed URL lands somewhere sensible instead of a 404.
 
-import { ComingSoonPlaceholder } from "@/components/ui/coming-soon-placeholder"
-import { FileText } from "lucide-react"
+import { redirect } from "next/navigation"
 
 export default function ClientDocumentsPage() {
-  return (
-    <ComingSoonPlaceholder
-      title="Documents"
-      subtitle="Your contracts, invoices, receipts, and checklists"
-      icon={FileText}
-      moduleLabel="Module 6"
-      description="Once your booking is confirmed, your contract and welcome letter will appear here automatically. Invoices and receipts follow after each payment is verified."
-      plannedFeatures={[
-        "Download your contract and welcome letter",
-        "Download invoices and official receipts",
-        "Track which documents are ready",
-      ]}
-    />
-  )
+  redirect("/portal")
 }

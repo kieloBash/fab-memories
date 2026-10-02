@@ -30,6 +30,7 @@ Run each command, then open `npm run e2e:report`.
 | B8 | `… 07-audit.spec.ts …` | All pass | ☐ | |
 | B9 | `… 08-reports.spec.ts …` | All pass (TC-FR58-02 can take up to 45 s) | ☐ | |
 | B10 | `npx playwright test e2e/specs/10-ui-smoke.spec.ts` | 8 passed (4 desktop + 4 mobile) | ☐ | |
+| B11 | `… 12-scope.spec.ts …` | 6 passed — Wedding/Debut only, no Documents menu, old Documents URLs redirect | ☐ | |
 
 If a test fails for a reason **other** than the known gaps, first look at its screenshot: a changed label means the
 test needs updating; a wrong result means a real defect — record it (README §4).

@@ -35,7 +35,7 @@ npx prisma db seed
 
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
-| 1 | Admin | Open Ben's Corporate booking detail (`/staff/admin/bookings/[id]`) | "Staff scheduling" panel visible below Vendor coordination |
+| 1 | Admin | Open Ben's Wedding booking detail (`/staff/admin/bookings/[id]`) | "Staff scheduling" panel visible below Vendor coordination |
 | 2 | Admin | Click "Assign coordinator" | Dialog opens with coordinator selector |
 | 3 | Admin | Select "Kristine Uy" | Selected; conflict check runs automatically |
 | 4 | Admin | No conflict found | Green "No scheduling conflicts on this date" banner shown |
@@ -67,8 +67,8 @@ npx prisma db seed
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
 | 1 | Admin | Open Anna's Debut (Maria Santos assigned, Lead Coordinator) | Panel shows Maria Santos card |
-| 2 | Admin | Open Ben's Birthday (same event date as Anna's Debut) | Panel shows Maria Santos card here too |
-| 3 | Admin | On Ben's Birthday, click "Assign coordinator" | Dialog opens |
+| 2 | Admin | Open Ben's Debut (same event date as Anna's Debut) | Panel shows Maria Santos card here too |
+| 3 | Admin | On Ben's Debut, click "Assign coordinator" | Dialog opens |
 | 4 | Admin | Select James Villanueva (not conflicted) | Green "No scheduling conflicts" banner |
 | 5 | Admin | Cancel, reopen dialog, hypothetically re-select Maria Santos | *(Maria is already assigned to this booking so she won't appear in the picker — conflict is instead visible by comparing both bookings' panels, per steps 1–2)** |
 | 6 | DB check | Both `StaffAssignment` rows for Maria Santos exist, different `bookingId`, same `eventDate` on their parent bookings | Confirms conflict condition |
@@ -119,9 +119,9 @@ npx prisma db seed
 
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
-| 1 | Maria Santos (`coordinator`) | Log in → go to `/staff/coordinator/staff` | "My assignments" section shows Anna's Debut and Ben's Birthday |
+| 1 | Maria Santos (`coordinator`) | Log in → go to `/staff/coordinator/staff` | "My assignments" section shows Anna's Debut and Ben's Debut |
 | 2 | Maria | Check Anna's Debut card | Shows "Lead Coordinator" badge, CONFIRMED status, event date and venue |
-| 3 | Maria | Check Ben's Birthday card | Shows "Lead Coordinator" badge, PENDING status |
+| 3 | Maria | Check Ben's Debut card | Shows "Lead Coordinator" badge, PENDING status |
 | 4 | Maria | Click Anna's Debut card | Navigates to `/staff/coordinator/bookings/[id]` |
 | 5 | James Villanueva (`coordinator2`) | Log in → go to `/staff/coordinator/staff` | "My assignments" shows only Anna's Debut, with "Backup" badge |
 | 6 | James | Confirm James cannot see Maria's assignments | Only James's own rows returned — self-scoped API |

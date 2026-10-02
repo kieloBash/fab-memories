@@ -31,14 +31,14 @@ const roles = [
     icon: Truck,
     title: "Service vendor",
     description:
-      "Receive a private event brief link with the date, venue, and requirements — no account or app needed.",
+      "Gets a read-only event brief link from the coordinator with the date, venue and services needed — no account required.",
   },
   {
     tag: "Client",
     icon: UserCheck,
     title: "Event client",
     description:
-      "Book your event, upload payment proof, track status in real time, and download all your documents — all in one place.",
+      "Book your wedding or debut, upload payment proof, and track your booking and payments in real time — all in one place.",
   },
 ];
 

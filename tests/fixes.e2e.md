@@ -47,7 +47,7 @@ npx prisma db seed
 
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
-| 1 | Admin | Set `depositAmount = ₱15,000` on Ben's Corporate booking | Terms saved |
+| 1 | Admin | Set `depositAmount = ₱15,000` on Ben's Wedding booking | Terms saved |
 | 2 | Ben | Submit deposit proof for exactly ₱15,000 | Submitted |
 | 3 | Admin | Verify deposit | Payment verified |
 | 4 | Ben | Payment page → deposit section | Shows "Amount paid: ₱15,000". No overpaid notice |
@@ -131,7 +131,7 @@ npx prisma db seed
 
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
-| 1 | Ben | Open Birthday booking payment page (deposit overdue by 3 days per seed) | Red "Deposit overdue" banner: "Your deposit was due on [date]. Please submit your payment as soon as possible or contact us." |
+| 1 | Ben | Open Ben's Debut booking payment page (deposit overdue by 3 days per seed) | Red "Deposit overdue" banner: "Your deposit was due on [date]. Please submit your payment as soon as possible or contact us." |
 | 2 | Ben | Deposit form still visible | Yes — client can still submit even after due date |
 | 3 | Ben | Submit deposit | Form works normally |
 

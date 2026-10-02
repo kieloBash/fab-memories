@@ -121,7 +121,7 @@ npx prisma db seed
 
 | Step | Actor | Action | Expected |
 |------|-------|--------|----------|
-| 1 | Admin | Set terms: FULL plan, deposit ₱15,000 on Ben's Corporate booking | Saved |
+| 1 | Admin | Set terms: FULL plan, deposit ₱15,000 on Ben's Wedding booking | Saved |
 | 2 | Ben | Booking detail | Step 3 label: "Settle remaining balance" (not "Settle installments") |
 | 3 | Ben | Journey step 3 sublabel after deposit verified | "Remaining: ₱35,000" |
 | 4 | Admin | Booking detail right panel | Green "Full payment plan" card shown. No installment schedule CTA |

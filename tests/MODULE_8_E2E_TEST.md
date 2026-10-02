@@ -149,7 +149,7 @@ Admin → `/api/reports/dashboard` → inspect `risks` and `riskSummary`
 | RK-09 | **S6** event in 5 days, 3 of 8 coordinators, caterer unconfirmed | `UNDERSTAFFED_IMMINENT` **and** `VENDOR_GAP_IMMINENT`, HIGH |
 | RK-10 | **S7** event in 20 days, fully staffed & covered | **nothing** raised |
 | RK-11 | **S8** Paolo on two pending events, one date | `COORDINATOR_CONFLICT` HIGH + `DATE_CONTENTION` LOW |
-| RK-12 | main seed: Anna's Debut (confirmed) & Ben's Birthday (pending) share a date | `DATE_CONTENTION` MEDIUM |
+| RK-12 | main seed: Anna's Debut (confirmed) & Ben's Debut (pending) share a date | `DATE_CONTENTION` MEDIUM |
 | RK-13 | **S9** cancellation requested 100 h ago | `CANCELLATION_PENDING`, HIGH |
 | RK-14 | **S10** two CONFIRMED events on one date | `DOUBLE_CONFIRMED`, HIGH |
 | RK-15 | **S11** CONFIRMED with no verified deposit | `CONFIRMED_WITHOUT_DEPOSIT`, HIGH |

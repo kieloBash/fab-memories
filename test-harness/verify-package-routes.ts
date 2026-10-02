@@ -19,7 +19,7 @@ async function main() {
   await cleanup()
   as("ADMIN", "admin")
   const pkg = await prisma.package.create({ data: {
-    name: `${TAG} Silver Package`, eventType: "BIRTHDAY", price: 20000, inclusions: ["Photobooth", "Emcee"], description: "A nice package.",
+    name: `${TAG} Silver Package`, eventType: "DEBUT", price: 20000, inclusions: ["Photobooth", "Emcee"], description: "A nice package.",
   } })
 
   let r = await body(await packagePATCH(json({ isActive: false }), P(pkg.id)))

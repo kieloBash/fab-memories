@@ -11,6 +11,8 @@ import { redirect } from "next/navigation";
  * - "My Bookings" correctly points to /portal/bookings
  * - Payments points to /portal/bookings/:id/payment (deep link handled
  *   at page level) — top-level nav stays at /portal/payments for overview
+ * - "Documents" removed: document generation is out of scope (thesis delimitation).
+ *   /portal/documents now redirects to /portal.
  *
  * FIX (login redirects): any non-CLIENT used to be sent to /staff — including users whose role was simply missing
  * from the session token, which /staff sent straight back here (redirect loop). Now: signed out → /sign-in,
@@ -20,7 +22,6 @@ const navItems = [
   { href: "/portal",            label: "Home",        icon: "Home",         exact: true },
   { href: "/portal/bookings",   label: "My bookings", icon: "CalendarHeart" },
   { href: "/portal/payments",   label: "Payments",    icon: "CreditCard" },
-  { href: "/portal/documents",  label: "Documents",   icon: "FileText" },
   { href: "/portal/account",    label: "Account",     icon: "UserCircle" },
 ];
 

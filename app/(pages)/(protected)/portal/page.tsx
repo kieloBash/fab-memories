@@ -10,7 +10,7 @@ import { PageHeader } from "@/components/ui/page-header"
 import { Button } from "@/components/ui/button"
 import { VENDOR_CATEGORY_ICONS, VENDOR_CATEGORY_LABELS } from "@/features/vendors"
 import {
-  CalendarHeart, Clock, CalendarDays, FileText,
+  CalendarHeart, Clock, CalendarDays, Wallet,
   Plus, ChevronRight, Sparkles, Store,
 } from "lucide-react"
 import { SPRING } from "@/lib/framer/framer-utils"
@@ -29,6 +29,9 @@ const itemVariants = {
 
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" })
+
+const fmtPeso = (n: number) =>
+  new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", minimumFractionDigits: 0 }).format(n)
 
 const fmtDateShort = (iso: string) =>
   new Date(iso).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })
@@ -73,6 +76,11 @@ export default function ClientPortalPage() {
   )
   const termsSet = !!(activeBooking?.paymentPlan && activeBooking?.depositAmount)
 
+  // Replaces the old "Documents ready" card — document generation is out of scope (thesis delimitation).
+  const amountPaid = (activeBooking?.payments ?? [])
+    .filter((p) => p.status === "VERIFIED")
+    .reduce((sum, p) => sum + Number(p.amount), 0)
+
   const nextPaymentLabel = !activeBooking
     ? "—"
     : !termsSet
@@ -99,9 +107,9 @@ export default function ClientPortalPage() {
       icon: CalendarDays,
     },
     {
-      label: "Documents ready",
-      value: 0,
-      icon: FileText,
+      label: "Amount paid",
+      value: activeBooking ? fmtPeso(amountPaid) : "—",
+      icon: Wallet,
     },
   ]
 
@@ -146,7 +154,7 @@ export default function ClientPortalPage() {
               No bookings yet
             </p>
             <p className="text-[13px] text-text-muted mt-1 max-w-xs">
-              Once you submit a booking request, your status, payments, and documents will appear here.
+              Once you submit a booking request, your booking status and payments will appear here.
             </p>
           </div>
           <Button onClick={() => router.push("/portal/bookings/new")}>

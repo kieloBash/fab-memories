@@ -1,21 +1,11 @@
 // app/(pages)/(protected)/staff/coordinator/documents/page.tsx
+//
+// SCOPE: document generation (contracts, invoices, receipts, checklists) is OUT OF SCOPE for this version —
+// it is listed in the thesis delimitations and deferred to a future build. The menu entry was removed; this
+// route stays only so an old bookmark or a typed URL lands somewhere sensible instead of a 404.
 
-import { ComingSoonPlaceholder } from "@/components/ui/coming-soon-placeholder"
-import { FileText } from "lucide-react"
+import { redirect } from "next/navigation"
 
 export default function CoordinatorDocumentsPage() {
-  return (
-    <ComingSoonPlaceholder
-      title="Documents"
-      subtitle="Contracts, invoices, receipts, and event checklists"
-      icon={FileText}
-      moduleLabel="Module 6"
-      description="Automatically generated business documents will appear here, scoped to the events you coordinate."
-      plannedFeatures={[
-        "View contracts and welcome letters for your assigned events",
-        "View invoices and receipts",
-        "Download event checklists",
-      ]}
-    />
-  )
+  redirect("/staff/coordinator")
 }

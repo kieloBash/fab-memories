@@ -4,10 +4,14 @@
 
 import { SPRING } from "@/lib/framer/framer-utils";
 import { motion } from "framer-motion";
+// SCOPE: the "Document generation" card was replaced — document generation is out of scope (thesis
+// delimitation). Vendor wording now matches the build: there is no vendor portal; coordinators contact
+// vendors and share a read-only vendor brief link.
+
 import {
+  BarChart3,
   CalendarDays,
   CreditCard,
-  FileText,
   ShieldCheck,
   Store,
   Users,
@@ -24,13 +28,13 @@ const features = [
     icon: CreditCard,
     title: "Payment tracking",
     description:
-      "Upload proof of payment, track verification status in real time, and receive structured receipts for every transaction.",
+      "Upload proof of payment, track verification status in real time, and get an email the moment each payment is verified.",
   },
   {
     icon: Store,
     title: "Vendor coordination",
     description:
-      "Coordinators assign vendors, record their availability and quotations, and share a private event brief link with each vendor.",
+      "Coordinators record each vendor's availability and quotation, and share a read-only event brief link with them.",
   },
   {
     icon: Users,
@@ -39,10 +43,10 @@ const features = [
       "Automated conflict detection ensures coordinators are never double-booked. Guest count–based ratios applied automatically.",
   },
   {
-    icon: FileText,
-    title: "Document generation",
+    icon: BarChart3,
+    title: "Real-time reports",
     description:
-      "Contracts, invoices, receipts, and event checklists are generated automatically upon booking confirmation.",
+      "Live dashboards and exportable reports on bookings, payments, staffing and risks — decision support for the business owner.",
   },
   {
     icon: ShieldCheck,

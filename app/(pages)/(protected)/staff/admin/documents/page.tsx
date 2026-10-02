@@ -1,22 +1,11 @@
 // app/(pages)/(protected)/staff/admin/documents/page.tsx
+//
+// SCOPE: document generation (contracts, invoices, receipts, checklists) is OUT OF SCOPE for this version —
+// it is listed in the thesis delimitations and deferred to a future build. The menu entry was removed; this
+// route stays only so an old bookmark or a typed URL lands somewhere sensible instead of a 404.
 
-import { ComingSoonPlaceholder } from "@/components/ui/coming-soon-placeholder"
-import { FileText } from "lucide-react"
+import { redirect } from "next/navigation"
 
 export default function AdminDocumentsPage() {
-  return (
-    <ComingSoonPlaceholder
-      title="Documents"
-      subtitle="Contracts, invoices, receipts, and event checklists"
-      icon={FileText}
-      moduleLabel="Module 6"
-      description="Automatically generate and manage all key business documents, triggered by booking confirmations and payment verifications — no more manually drafting contracts in a Word doc."
-      plannedFeatures={[
-        "Auto-generated contract and welcome letter on booking confirmation",
-        "Auto-generated invoice and receipt on payment verification",
-        "All 8 event checklist types (guest list, suppliers directory, entourage list, crew meals, and more)",
-        "Document template management",
-      ]}
-    />
-  )
+  redirect("/staff/admin")
 }

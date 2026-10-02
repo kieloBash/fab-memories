@@ -236,8 +236,8 @@ async function scenarios() {
   console.log("  ✅  S1b  proof awaiting verification 80h (escalated)")
 
   // S2 — flagged 9 days ago, never resubmitted
-  const s2 = await mkBooking({ client: "anna", type: EventType.BIRTHDAY, date: day(110), status: BookingStatus.PENDING, guests: 60, price: 30_000, plan: PaymentPlan.FULL, depositAmount: 9_000, depositDueDate: day(10), label: "S2-flagged-unresolved" })
-  await mkPayment(s2.id, { type: PaymentType.DEPOSIT, method: PaymentMethod.MAYA, amount: 9_000, status: PaymentStatus.FLAGGED, at: hoursAgo(9 * 24 + 2), reviewedAt: hoursAgo(9 * 24), ref: "MY-S2-0009", note: "Reference number does not match the amount." })
+  const s2 = await mkBooking({ client: "anna", type: EventType.DEBUT, date: day(110), status: BookingStatus.PENDING, guests: 60, price: 65_000, plan: PaymentPlan.FULL, depositAmount: 19_500, depositDueDate: day(10), label: "S2-flagged-unresolved" })
+  await mkPayment(s2.id, { type: PaymentType.DEPOSIT, method: PaymentMethod.MAYA, amount: 19_500, status: PaymentStatus.FLAGGED, at: hoursAgo(9 * 24 + 2), reviewedAt: hoursAgo(9 * 24), ref: "MY-S2-0009", note: "Reference number does not match the amount." })
   console.log("  ✅  S2   flagged 9 days ago, no resubmission")
 
   // S2b — flagged, then corrected and verified (must NOT be reported)
@@ -258,8 +258,8 @@ async function scenarios() {
   console.log("  ✅  S4   installment #1 due 6 days ago, unpaid")
 
   // S5 — full balance overdue
-  const s5 = await mkBooking({ client: "anna", type: EventType.CORPORATE, date: day(75), status: BookingStatus.CONFIRMED, guests: 80, price: 50_000, plan: PaymentPlan.FULL, depositAmount: 15_000, fullPaymentDueDate: day(-2), depositVerifiedAt: hoursAgo(30 * 24), label: "S5-balance-overdue" })
-  await verifiedDeposit(s5.id, 15_000, hoursAgo(31 * 24), PaymentMethod.CASH)
+  const s5 = await mkBooking({ client: "anna", type: EventType.WEDDING, date: day(75), status: BookingStatus.CONFIRMED, guests: 80, price: 85_000, plan: PaymentPlan.FULL, depositAmount: 25_000, fullPaymentDueDate: day(-2), depositVerifiedAt: hoursAgo(30 * 24), label: "S5-balance-overdue" })
+  await verifiedDeposit(s5.id, 25_000, hoursAgo(31 * 24), PaymentMethod.CASH)
   console.log("  ✅  S5   full balance due 2 days ago, unpaid")
 
   // S6 — imminent, understaffed, vendor gap
@@ -271,8 +271,8 @@ async function scenarios() {
   console.log("  ✅  S6   in 5 days: 3 of 8 coordinators, caterer unconfirmed")
 
   // S7 — imminent but fully covered (no risk)
-  const s7 = await mkBooking({ client: "anna", type: EventType.BIRTHDAY, date: day(20), status: BookingStatus.CONFIRMED, guests: 40, price: 30_000, plan: PaymentPlan.FULL, depositAmount: 9_000, depositVerifiedAt: hoursAgo(15 * 24), vendorCategories: [VendorCategory.FLORALS, VendorCategory.PHOTOGRAPHY], label: "S7-covered" })
-  await verifiedDeposit(s7.id, 9_000, hoursAgo(16 * 24), PaymentMethod.MAYA)
+  const s7 = await mkBooking({ client: "anna", type: EventType.DEBUT, date: day(20), status: BookingStatus.CONFIRMED, guests: 40, price: 65_000, plan: PaymentPlan.FULL, depositAmount: 19_500, depositVerifiedAt: hoursAgo(15 * 24), vendorCategories: [VendorCategory.FLORALS, VendorCategory.PHOTOGRAPHY], label: "S7-covered" })
+  await verifiedDeposit(s7.id, 19_500, hoursAgo(16 * 24), PaymentMethod.MAYA)
   for (const w of ["coordinator", "coordinator2", "coordinator3", "coordinator4"] as const) await assign(s7.id, w)
   await vend(s7.id, VendorCategory.FLORALS, { confirmed: true, quote: 15_000, note: "Centerpieces x6" })
   await vend(s7.id, VendorCategory.PHOTOGRAPHY, { confirmed: true, quote: 22_500 })
@@ -286,8 +286,8 @@ async function scenarios() {
   console.log("  ✅  S8   Paolo Mendoza on two pending events on one date")
 
   // S9 — cancellation requested 100 h ago
-  const s9 = await mkBooking({ client: "ben", type: EventType.CORPORATE, date: day(85), status: BookingStatus.CANCELLATION_REQUESTED, guests: 90, price: 50_000, plan: PaymentPlan.FULL, depositAmount: 15_000, depositVerifiedAt: hoursAgo(25 * 24), cancellationRequestedAt: hoursAgo(100), cancellationReason: "Venue changed; company needs to cancel.", label: "S9-cancellation" })
-  await verifiedDeposit(s9.id, 15_000, hoursAgo(26 * 24))
+  const s9 = await mkBooking({ client: "ben", type: EventType.WEDDING, date: day(85), status: BookingStatus.CANCELLATION_REQUESTED, guests: 90, price: 85_000, plan: PaymentPlan.FULL, depositAmount: 25_000, depositVerifiedAt: hoursAgo(25 * 24), cancellationRequestedAt: hoursAgo(100), cancellationReason: "Venue changed; the couple needs to cancel.", label: "S9-cancellation" })
+  await verifiedDeposit(s9.id, 25_000, hoursAgo(26 * 24))
   console.log("  ✅  S9   cancellation requested 100h ago")
 
   // S10 — two CONFIRMED on one date. Since Module 9 the DATABASE refuses this (partial unique index), so this
@@ -309,7 +309,7 @@ async function scenarios() {
   }
 
   // S11 — CONFIRMED without a verified deposit (deliberate rule violation)
-  await mkBooking({ client: "ben", type: EventType.BIRTHDAY, date: day(125), status: BookingStatus.CONFIRMED, guests: 60, price: 30_000, plan: PaymentPlan.FULL, depositAmount: 9_000, label: "S11-no-deposit" })
+  await mkBooking({ client: "ben", type: EventType.DEBUT, date: day(125), status: BookingStatus.CONFIRMED, guests: 60, price: 65_000, plan: PaymentPlan.FULL, depositAmount: 19_500, label: "S11-no-deposit" })
   console.log("  ⚠️   S11  CONFIRMED with no verified deposit (intentional rule violation)")
 }
 
@@ -318,8 +318,9 @@ async function scenarios() {
 async function history() {
   console.log("\n📚  History (past events for booking / payment / staff reports)\n")
   const methods = [PaymentMethod.GCASH, PaymentMethod.MAYA, PaymentMethod.BANK_TRANSFER, PaymentMethod.CASH]
-  const types = [EventType.WEDDING, EventType.DEBUT, EventType.CORPORATE, EventType.BIRTHDAY]
-  const prices: Record<string, number> = { WEDDING: 85_000, DEBUT: 65_000, CORPORATE: 50_000, BIRTHDAY: 30_000 }
+  // Thesis scope: Wedding and Debut only (alternating keeps the old i % 4 rhythm).
+  const types = [EventType.WEDDING, EventType.DEBUT, EventType.WEDDING, EventType.DEBUT]
+  const prices: Record<string, number> = { WEDDING: 85_000, DEBUT: 65_000 }
   const staffed: { id: string }[] = []
 
   for (let i = 0; i < 14; i++) {
@@ -400,14 +401,15 @@ async function auditEntries() {
 
 async function bulk(n: number) {
   console.log(`\n🏋️  Bulk: ${n} past bookings, ~${n * 1.5} payments (NFR-05 performance dataset)\n`)
-  const types = [EventType.WEDDING, EventType.DEBUT, EventType.CORPORATE, EventType.BIRTHDAY]
+  // Thesis scope: Wedding and Debut only.
+  const types = [EventType.WEDDING, EventType.DEBUT, EventType.WEDDING, EventType.DEBUT]
   const methods = [PaymentMethod.GCASH, PaymentMethod.MAYA, PaymentMethod.BANK_TRANSFER, PaymentMethod.CASH]
   const bookings: any[] = []
   const payments: any[] = []
 
   for (let i = 0; i < n; i++) {
     const type = types[i % 4]
-    const price = [85_000, 65_000, 50_000, 30_000][i % 4]
+    const price = [85_000, 65_000, 85_000, 65_000][i % 4]
     const date = day(-2 - i)                                   // unique date per booking, all in the past
     const roll = i % 20
     const status = roll < 15 ? BookingStatus.CONFIRMED : roll < 18 ? BookingStatus.CANCELLED : BookingStatus.PENDING
