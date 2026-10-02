@@ -30,7 +30,8 @@
     "typecheck:e2e": "tsc -p tsconfig.e2e.json",
     "email:preview": "tsx scripts/email-preview.ts",
     "email:test": "tsx scripts/send-test-email.ts",
-    "scope:cleanup": "tsx prisma/scripts/deactivate-out-of-scope-packages.ts"
+    "scope:cleanup": "tsx prisma/scripts/deactivate-out-of-scope-packages.ts",
+    "seed:prod": "tsx --env-file=.env.prod-setup prisma/seeds/prod-setup.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",

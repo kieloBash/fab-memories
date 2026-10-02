@@ -223,7 +223,7 @@ There is no command for "Clerk only". Choose one:
 3. **Clerk production instance:**
    - username + password sign-in enabled;
    - session token customized to `{ "metadata": "{{user.public_metadata}}" }`;
-   - Sessions → Maximum lifetime ≥ `SESSION_MAX_AGE`;
+   - Sessions → Maximum lifetime (and inactivity timeout) set as you want them — Clerk enforces session lifetime, the app does not (see `documents/SESSION_LIFETIME.md`);
    - webhook endpoint `https://<your-domain>/api/webhooks/clerk` with `user.*` and `session.*` events, its secret stored in `CLERK_WEBHOOK_SIGNING_SECRET`.
 4. **First admin, created by hand (no seed):**
    1. Clerk Dashboard (production) → Users → **Create user**, with a username, the owner's real email, and a strong password.

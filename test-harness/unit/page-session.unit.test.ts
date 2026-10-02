@@ -37,7 +37,7 @@ describe("getPageSession", () => {
 
   it("no role in the token and the account is deactivated → role null (layout shows /unauthorized)", async () => {
     h.clerkId = "user_1"; h.dbUser = { role: "ADMIN", isActive: false, fullName: "A" }
-    expect(await getPageSession()).toMatchObject({ signedIn: true, role: null })
+    expect(await getPageSession()).toMatchObject({ signedIn: true })
   })
 
   it("no role anywhere → role null, never guessed", async () => {

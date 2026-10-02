@@ -165,55 +165,40 @@ describe("static security headers (next.config.ts)", () => {
   it("does not advertise the framework", async () => expect((await import("@/next.config")).default.poweredByHeader).toBe(false))
 })
 
-// SESSION_MAX_AGE — default 1d (1440 min). fva = [minutes since password, minutes since 2nd factor].
-describe("session max age (SESSION_MAX_AGE, default 1d)", () => {
-  const fresh: [number, number] = [30, -1]
-  const old: [number, number] = [1440, -1]
+// Session lifetime is enforced by CLERK (Dashboard → Sessions: maximum lifetime, inactivity timeout). The app never
+// measures session age itself: when Clerk ends a session, the request simply arrives signed out (userId null).
+// fva = Clerk's factor verification age [minutes since password, minutes since 2nd factor] — ignored by the app.
+describe("session lifetime is left to Clerk", () => {
+  const ageOld: [number, number] = [60 * 24 * 30, -1] // signed in 30 days ago, session still valid at Clerk
 
-  beforeEach(() => { delete process.env.SESSION_MAX_AGE })
-
-  it("a fresh session reaches pages and API routes", async () => {
-    expect((await call("/staff/admin", { userId: "u", role: "ADMIN", fva: fresh })).passed).toBe(true)
-    expect((await call("/api/bookings", { userId: "u", role: "CLIENT", fva: fresh })).passed).toBe(true)
+  it("a session Clerk still accepts is never cut off by the app, however old the sign-in", async () => {
+    expect((await call("/staff/admin", { userId: "u", role: "ADMIN", fva: ageOld })).passed).toBe(true)
+    expect((await call("/portal/bookings", { userId: "u", role: "CLIENT", fva: ageOld })).passed).toBe(true)
+    expect((await call("/api/bookings", { userId: "u", role: "CLIENT", fva: ageOld })).passed).toBe(true)
   })
 
-  it("an expired STAFF session on a page → /staff-login?error=SESSION_EXPIRED", async () => {
-    expect((await call("/staff/coordinator", { userId: "u", role: "COORDINATOR", fva: old })).location).toContain("/staff-login?error=SESSION_EXPIRED")
+  it("a session Clerk ended (arrives signed out) on a STAFF page → /staff-login, no error code added by the proxy", async () => {
+    const r = await call("/staff/coordinator", { userId: null })
+    expect(r.location).toContain("/staff-login")
+    expect(r.location).not.toContain("error=")
   })
 
-  it("an expired CLIENT session on a page → /sign-in?error=SESSION_EXPIRED", async () => {
-    expect((await call("/portal/bookings", { userId: "u", role: "CLIENT", fva: old })).location).toContain("/sign-in?error=SESSION_EXPIRED")
+  it("a session Clerk ended on a CLIENT page → /sign-in", async () => {
+    expect((await call("/portal/bookings", { userId: null })).location).toContain("/sign-in")
   })
 
-  it("the login page of the account's OWN portal is used, whatever page was requested", async () => {
-    expect((await call("/portal", { userId: "u", role: "ADMIN", fva: old })).location).toContain("/staff-login?error=SESSION_EXPIRED")
-  })
-
-  it("an expired session calling the API → 401 SESSION_EXPIRED", async () => {
-    const r = await call("/api/bookings", { userId: "u", role: "CLIENT", fva: old })
+  it("a session Clerk ended calling the API → 401 NO_SESSION (lib/axios.ts then sends the browser to its login page)", async () => {
+    const r = await call("/api/bookings", { userId: null })
     expect(r.status).toBe(401)
-    expect(await r.res.json()).toMatchObject({ code: "SESSION_EXPIRED" })
+    expect(await r.res.json()).toEqual({ error: "Unauthorized", code: "NO_SESSION" })
   })
 
-  it("…except /api/auth/session-expired, which ends the session", async () => {
-    expect((await call("/api/auth/session-expired", { userId: "u", role: "CLIENT", fva: old })).passed).toBe(true)
+  it("the old custom endpoint /api/auth/session-expired no longer exists for signed-out callers (deny-by-default)", async () => {
+    expect((await call("/api/auth/session-expired", { userId: null })).status).toBe(401)
   })
 
-  it("an expired session on a login page is NOT bounced to the dashboard (the page must load to sign it out)", async () => {
-    expect((await call("/staff-login?error=SESSION_EXPIRED", { userId: "u", role: "ADMIN", fva: old })).passed).toBe(true)
-    expect((await call("/sign-in", { userId: "u", role: "CLIENT", fva: old })).passed).toBe(true)
-  })
-
-  it("a fresh session on a login page still goes to its dashboard", async () => {
-    expect((await call("/sign-in", { userId: "u", role: "CLIENT", fva: fresh })).location).toContain("/portal")
-  })
-
-  it("SESSION_MAX_AGE is read per request (e.g. 15m)", async () => {
-    process.env.SESSION_MAX_AGE = "15m"
-    expect((await call("/staff/admin", { userId: "u", role: "ADMIN", fva: [20, -1] })).location).toContain("SESSION_EXPIRED")
-  })
-
-  it("no verification age in the token → NOT treated as expired (falls back to Clerk's own lifetime)", async () => {
-    expect((await call("/staff/admin", { userId: "u", role: "ADMIN", fva: null })).passed).toBe(true)
+  it("a signed-in user on a login page still goes to their dashboard", async () => {
+    expect((await call("/sign-in", { userId: "u", role: "CLIENT", fva: ageOld })).location).toContain("/portal")
+    expect((await call("/staff-login", { userId: "u", role: "ADMIN" })).location).toContain("/staff")
   })
 })
